@@ -1330,13 +1330,15 @@ flog_result_t flog_commit_file_sector(flog_write_file_t *file, uint8_t const *da
 
         flog_unlock_allocate();
 
+        uint16_t bytes_in_sector = FS_SECTOR_SIZE - sizeof(flog_file_tail_sector_header_t);
+
         // Prepare the header
         memzero(file_tail_sector_header, sizeof(flog_file_tail_sector_header_t)); // Optional
         file_tail_sector_header->next_age = next_block.age + 1;
         file_tail_sector_header->next_block = next_block.block;
         file_tail_sector_header->timestamp = ++flogfs.t;
-        file->bytes_in_block += FS_SECTOR_SIZE - sizeof(flog_file_tail_sector_header_t);
-        file_sector_spare.nbytes = FS_SECTOR_SIZE - sizeof(flog_file_tail_sector_header_t);
+        file->bytes_in_block += n; // Not bytes_in_sector, this is updated on in memory/non-flushed writes.
+        file_sector_spare.nbytes = bytes_in_sector;
         file_tail_sector_header->bytes_in_block = file->bytes_in_block;
 
         flog_open_sector(file->block, FLOG_TAIL_SECTOR);
@@ -1362,6 +1364,8 @@ flog_result_t flog_commit_file_sector(flog_write_file_t *file, uint8_t const *da
         flog_file_init_sector_header_t *const file_init_sector_header =
             (flog_file_init_sector_header_t *)file->sector_buffer;
 
+        uint16_t bytes_in_sector = file->offset + n;
+
         flog_lock_allocate();
         // So if this block is the dirty block...
         if (flogfs.dirty_block.file == file) {
@@ -1369,7 +1373,7 @@ flog_result_t flog_commit_file_sector(flog_write_file_t *file, uint8_t const *da
         }
         flog_unlock_allocate();
         file_sector_spare.type_id = FLOG_BLOCK_TYPE_FILE;
-        file_sector_spare.nbytes = file->offset + n;
+        file_sector_spare.nbytes = bytes_in_sector;
 
         // We need to just write the data and advance
         if (file->sector == FLOG_INIT_SECTOR) {
@@ -1377,7 +1381,7 @@ flog_result_t flog_commit_file_sector(flog_write_file_t *file, uint8_t const *da
             memzero(file_init_sector_header, sizeof(flog_file_init_sector_header_t)); // Optional
             file_init_sector_header->file_id = file->id;
             file_init_sector_header->age = file->block_age;
-            file_sector_spare.nbytes -= sizeof(flog_file_init_sector_header_t);
+            file_sector_spare.nbytes -= sizeof(flog_file_init_sector_header_t); // file->offset had accounted for this.
         }
 
         flog_open_sector(file->block, file->sector);

@@ -1002,7 +1002,7 @@ uint32_t flogfs_write(flog_write_file_t *file, uint8_t const *src, uint32_t nbyt
             file->sector_remaining_bytes -= nbytes;
             file->offset += nbytes;
             file->bytes_in_block += nbytes;
-            file->write_head += nbytes;
+            file->file_size += nbytes;
             nbytes = 0;
         }
     }
@@ -1049,7 +1049,7 @@ flog_result_t flogfs_open_write(flog_write_file_t *file, char const *filename) {
         file->id = find_result.file_id;
         file->sector = FLOG_INIT_SECTOR;
         // Count bytes from 0
-        file->write_head = 0;
+        file->file_size = 0;
         // Iterate to the end of the file
         // First check each terminated block
         while (1) {
@@ -1060,7 +1060,7 @@ flog_result_t flogfs_open_write(flog_write_file_t *file, char const *filename) {
                 break;
             }
             file->block = buffer_union.file_tail_sector_header.next_block;
-            file->write_head += buffer_union.file_tail_sector_header.bytes_in_block;
+            file->file_size += buffer_union.file_tail_sector_header.bytes_in_block;
         }
         // Now file->block is the first incomplete block
         // Scan it sector-by-sector
@@ -1069,7 +1069,7 @@ flog_result_t flogfs_open_write(flog_write_file_t *file, char const *filename) {
         // It might have no data
         flog_open_sector(file->block, FLOG_INIT_SECTOR);
         flash_read_spare(&spare_buffer_union.spare_buffer, FLOG_INIT_SECTOR);
-        file->write_head += spare_buffer_union.file_sector_spare.nbytes;
+        file->file_size += spare_buffer_union.file_sector_spare.nbytes;
         file->sector = flog_increment_sector(file->sector);
         while (1) {
             // For each block in the file
@@ -1086,7 +1086,7 @@ flog_result_t flogfs_open_write(flog_write_file_t *file, char const *filename) {
                 file->sector_remaining_bytes = FS_SECTOR_SIZE - file->offset;
                 break;
             }
-            file->write_head += spare_buffer_union.file_sector_spare.nbytes;
+            file->file_size += spare_buffer_union.file_sector_spare.nbytes;
             file->sector = flog_increment_sector(file->sector);
         }
     } else {
@@ -1132,7 +1132,7 @@ flog_result_t flogfs_open_write(flog_write_file_t *file, char const *filename) {
         file->block_age = alloc_block.age;
         file->id = flogfs.max_file_id;
         file->bytes_in_block = 0;
-        file->write_head = 0;
+        file->file_size = 0;
         file->sector = FLOG_INIT_SECTOR;
         file->offset = sizeof(flog_file_init_sector_header_t);
         file->sector_remaining_bytes = FS_SECTOR_SIZE - sizeof(flog_file_init_sector_header_t);
@@ -1353,9 +1353,9 @@ flog_result_t flog_commit_file_sector(flog_write_file_t *file, uint8_t const *da
         file->block_age = next_block.age;
         file->sector = FLOG_INIT_SECTOR;
         file->sector_remaining_bytes = FS_SECTOR_SIZE - sizeof(flog_file_init_sector_header_t);
-        file->bytes_in_block = 0;
         file->offset = sizeof(flog_file_init_sector_header_t);
-        file->write_head += n;
+        file->bytes_in_block = 0;
+        file->file_size += n;
         return FLOG_SUCCESS;
     } else {
         flog_file_init_sector_header_t *const file_init_sector_header =
@@ -1399,7 +1399,7 @@ flog_result_t flog_commit_file_sector(flog_write_file_t *file, uint8_t const *da
         }
         file->bytes_in_block += n;
         file->sector_remaining_bytes = FS_SECTOR_SIZE - file->offset;
-        file->write_head += n;
+        file->file_size += n;
         return FLOG_SUCCESS;
     }
 }

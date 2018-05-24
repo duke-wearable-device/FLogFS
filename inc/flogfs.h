@@ -141,8 +141,8 @@ typedef struct flog_read_file_t {
  operations.
  */
 typedef struct flog_write_file_t {
-    //! Offset of write head from start of file
-    uint32_t write_head;
+    //! Size of the file and by consequence the offset of write head from start of file
+    uint32_t file_size;
     //! Block index of write head
     uint16_t block;
     //! Sector index of write head

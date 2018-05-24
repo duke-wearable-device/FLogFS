@@ -222,6 +222,8 @@ static inline flog_result_t flog_open_sector(uint16_t block, uint16_t sector);
 
 static void flog_close_sector();
 
+static flog_result_t flogfs_read_file_size(flog_read_file_t *file);
+
 /*!
  @brief Initialize an inode iterator
  @param[in,out] iter The iterator structure
@@ -783,6 +785,9 @@ flog_result_t flogfs_open_read(flog_read_file_t *file, char const *filename) {
 
     file->block = find_result.first_block;
     file->id = find_result.file_id;
+
+    flogfs_read_file_size(file);
+
     /////////////
     // Actual file search
     /////////////
@@ -1016,6 +1021,44 @@ done:
 
 flog_result_t flogfs_seek(flog_read_file_t *file, uint32_t index) {
     return FLOG_FAILURE;
+}
+
+static flog_result_t flogfs_read_file_size(flog_read_file_t *file) {
+    flog_file_tail_sector_header_t file_tail_sector_header;
+    flog_file_sector_spare_t file_sector_spare;
+
+    uint16_t block = file->block;
+    uint16_t sector = FLOG_INIT_SECTOR;
+
+    file->file_size = 0;
+
+    while (1) {
+        flog_open_sector(block, FLOG_TAIL_SECTOR);
+        flash_read_sector((uint8_t *)&file_tail_sector_header, FLOG_TAIL_SECTOR, 0, sizeof(flog_file_tail_sector_header_t));
+        if (file_tail_sector_header.timestamp == FLOG_TIMESTAMP_INVALID) {
+            break;
+        }
+        block = file_tail_sector_header.next_block;
+        file->file_size += file_tail_sector_header.bytes_in_block;
+    }
+    // Now file->block is the first incomplete block, scan it sector-by-sector
+
+    // Check out init sector no matter what and move on. It might have no data
+    flog_open_sector(block, FLOG_INIT_SECTOR);
+    flash_read_spare((uint8_t *)&file_sector_spare, FLOG_INIT_SECTOR);
+    file->file_size += file_sector_spare.nbytes;
+    sector = flog_increment_sector(sector);
+    while (1) {
+        flog_open_sector(block, sector);
+        flash_read_spare((uint8_t *)&file_sector_spare, sector);
+        if (file_sector_spare.nbytes == FLOG_SECTOR_NBYTES_INVALID) {
+            break;
+        }
+        file->file_size += file_sector_spare.nbytes;
+        sector = flog_increment_sector(sector);
+    }
+
+    return FLOG_SUCCESS;
 }
 
 flog_result_t flogfs_open_write(flog_write_file_t *file, char const *filename) {

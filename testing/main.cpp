@@ -26,8 +26,7 @@ size_t write_file(const char *path) {
         std::cout << "Creating " << path << std::endl;
         flog_check(flogfs_open_write(&file, path));
         std::cout << "Writing " << path << std::endl;
-        // for (auto i = 0; i < 1024 * 26; ++i) {
-        while (size < 4*512*64) {
+        for (auto i = 0; i < 1024 * 26; ++i) {
             size += flogfs_write(&file, (uint8_t *)Pattern, strlen(Pattern));
         }
         if (size != file.file_size) {
@@ -47,7 +46,7 @@ void reopen_file(const char *path, size_t expected_size) {
     flog_check(flogfs_open_write(&file, path));
     std::cout << "Opened " << path << " size=" << file.file_size << " block=" << file.block << " sector=" << file.sector << std::endl;
     if (expected_size != file.file_size) {
-        std::cout << "Size is wrong! (exepcted != actual) " << expected_size << " != " << file.file_size << " diff=" << (file.file_size - expected_size) << std::endl;
+        std::cout << "Size is wrong! " << expected_size << " != " << file.file_size << " diff=" << ((int32_t)file.file_size - (int32_t)expected_size) << std::endl;
     }
     flog_check(flogfs_close_write(&file));
 }
@@ -57,7 +56,7 @@ void read_file(const char *path, size_t expected_size) {
     std::cout << "Reading " << path << std::endl;
     flog_check(flogfs_open_read(&file, path));
     if (expected_size != file.file_size) {
-        std::cout << "Size is wrong! " << expected_size << " != " << file.file_size << " diff=" << (file.file_size - expected_size) << std::endl;
+        std::cout << "Size is wrong! " << expected_size << " != " << file.file_size << " diff=" << ((int32_t)file.file_size - (int32_t)expected_size) << std::endl;
     }
 
     while (true) {

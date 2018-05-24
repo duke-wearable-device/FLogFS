@@ -1331,6 +1331,7 @@ flog_result_t flog_commit_file_sector(flog_write_file_t *file, uint8_t const *da
         flog_unlock_allocate();
 
         // Prepare the header
+        memzero(file_tail_sector_header, sizeof(flog_file_tail_sector_header_t)); // Optional
         file_tail_sector_header->next_age = next_block.age + 1;
         file_tail_sector_header->next_block = next_block.block;
         file_tail_sector_header->timestamp = ++flogfs.t;
@@ -1373,6 +1374,7 @@ flog_result_t flog_commit_file_sector(flog_write_file_t *file, uint8_t const *da
         // We need to just write the data and advance
         if (file->sector == FLOG_INIT_SECTOR) {
             // Need to prepare sector 0 header
+            memzero(file_init_sector_header, sizeof(flog_file_init_sector_header_t)); // Optional
             file_init_sector_header->file_id = file->id;
             file_init_sector_header->age = file->block_age;
             file_sector_spare.nbytes -= sizeof(flog_file_init_sector_header_t);

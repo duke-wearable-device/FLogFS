@@ -27,7 +27,6 @@ of the authors and should not be interpreted as representing official policies,
 either expressed or implied, of the FLogFS Project.
 */
 
-
 /*!
  * @file flogfs.h
  * @author Ben Nahill <bnahill@gmail.com>
@@ -46,24 +45,22 @@ either expressed or implied, of the FLogFS Project.
 //! @{
 
 //! Compile as C++
-#define FLOG_BUILD_CPP        (0)
+#define FLOG_BUILD_CPP (0)
 
 //! @name Version Number
 //! @{
-#define FLOG_VSN_MAJOR        (0)
-#define FLOG_VSN_MINOR        (1)
+#define FLOG_VSN_MAJOR (0)
+#define FLOG_VSN_MINOR (1)
 //! @}
-
 
 //! @name Configuration Options
 //! Some compilation options to customize the build
 //! @{
 //! The maximum file name length allowed
-#define FLOG_MAX_FNAME_LEN     (32)
+#define FLOG_MAX_FNAME_LEN (32)
 //! @}
 
 #include "flogfs_conf.h"
-
 
 #if !FLOG_BUILD_CPP
 #ifdef __cplusplus
@@ -71,16 +68,12 @@ extern "C" {
 #endif
 #endif
 
+typedef enum { FLOG_FAILURE, FLOG_SUCCESS } flog_result_t;
 
 typedef enum {
-	FLOG_FAILURE,
-	FLOG_SUCCESS
-} flog_result_t;
-
-typedef enum {
-	FLOG_FLASH_SUCCESS = 0,
-	FLOG_FLASH_ERR_CORRECT = 1,
-	FLOG_FLASH_ERR_DETECT = -1
+    FLOG_FLASH_SUCCESS = 0,
+    FLOG_FLASH_ERR_CORRECT = 1,
+    FLOG_FLASH_ERR_DETECT = -1
 } flog_flash_read_result_t;
 
 //! @name Type size definitions
@@ -97,24 +90,24 @@ typedef uint16_t inode_index_t;
  * @brief A structure for iterating through inode table elements
  */
 typedef struct {
-	//! The current block
-	flog_block_idx_t block;
-	//! The next block so as to avoid re-reading the header
-	flog_block_idx_t next_block;
-	//! The previous block
-	flog_block_idx_t previous_block;
-	//! The index of the current inode entry -- relative to start point
-	uint16_t inode_idx;
-	//! The index of the current inode block -- absolute
-	uint16_t inode_block_idx;
-	//! The current sector -- If this is
-	//! FS_SECTORS_PER_PAGE * FS_PAGES_PER_BLOCK, at end of block
-	uint16_t sector;
+    //! The current block
+    flog_block_idx_t block;
+    //! The next block so as to avoid re-reading the header
+    flog_block_idx_t next_block;
+    //! The previous block
+    flog_block_idx_t previous_block;
+    //! The index of the current inode entry -- relative to start point
+    uint16_t inode_idx;
+    //! The index of the current inode block -- absolute
+    uint16_t inode_block_idx;
+    //! The current sector -- If this is
+    //! FS_SECTORS_PER_PAGE * FS_PAGES_PER_BLOCK, at end of block
+    uint16_t sector;
 } flog_inode_iterator_t;
 
 typedef flog_inode_iterator_t flogfs_ls_iterator_t;
 
-#define FLOG_RESULT(x) ((x)?FLOG_SUCCESS:FLOG_FAILURE)
+#define FLOG_RESULT(x) ((x) ? FLOG_SUCCESS : FLOG_FAILURE)
 
 /*!
  @brief The state of a currently-open file
@@ -123,20 +116,20 @@ typedef flog_inode_iterator_t flogfs_ls_iterator_t;
  for access to a file
  */
 typedef struct flog_read_file_t {
-	//! Offset of read head from the start of the file
-	uint32_t read_head;
-	//! Block index of read head
-	uint16_t block;
-	//! Sector index of read head
-	uint16_t sector;
-	//! Index of the read head inside sector
-	uint16_t offset;
-	//! Number of bytes remaining in current sector
-	uint16_t sector_remaining_bytes;
-	
-	uint32_t id;
-	
-	struct flog_read_file_t * next;
+    //! Offset of read head from the start of the file
+    uint32_t read_head;
+    //! Block index of read head
+    uint16_t block;
+    //! Sector index of read head
+    uint16_t sector;
+    //! Index of the read head inside sector
+    uint16_t offset;
+    //! Number of bytes remaining in current sector
+    uint16_t sector_remaining_bytes;
+
+    uint32_t id;
+
+    struct flog_read_file_t *next;
 } flog_read_file_t;
 
 /*!
@@ -147,26 +140,26 @@ typedef struct flog_read_file_t {
  operations.
  */
 typedef struct flog_write_file_t {
-	//! Offset of write head from start of file
-	uint32_t write_head;
-	//! Block index of write head
-	uint16_t block;
-	//! Sector index of write head
-	uint16_t sector;
-	//! Index of write header insider current sector
-	uint16_t offset;
-	//! The number of bytes remaining in the sector before forcing a cache flush
-	uint16_t sector_remaining_bytes;
-	//! Bytes in block (so far)
-	uint16_t bytes_in_block;
-	uint32_t block_age;
-	uint32_t id;
-	
-	int32_t base_threshold;
+    //! Offset of write head from start of file
+    uint32_t write_head;
+    //! Block index of write head
+    uint16_t block;
+    //! Sector index of write head
+    uint16_t sector;
+    //! Index of write header insider current sector
+    uint16_t offset;
+    //! The number of bytes remaining in the sector before forcing a cache flush
+    uint16_t sector_remaining_bytes;
+    //! Bytes in block (so far)
+    uint16_t bytes_in_block;
+    uint32_t block_age;
+    uint32_t id;
 
-	uint8_t sector_buffer[FS_SECTOR_SIZE];
-	
-	struct flog_write_file_t * next;
+    int32_t base_threshold;
+
+    uint8_t sector_buffer[FS_SECTOR_SIZE];
+
+    struct flog_write_file_t *next;
 } flog_write_file_t;
 
 /*!
@@ -191,7 +184,7 @@ flog_result_t flogfs_mount();
  @retval FLOG_SUCCESS if successful
  @retval FLOG_FAILURE otherwise (doesn't exist or corruption)
  */
-flog_result_t flogfs_open_read(flog_read_file_t * file, char const * filename);
+flog_result_t flogfs_open_read(flog_read_file_t *file, char const *filename);
 
 /*!
  @brief Open a file to write
@@ -204,7 +197,7 @@ flog_result_t flogfs_open_read(flog_read_file_t * file, char const * filename);
  if it exists. Check the flog_write_file_t::write_head value to see where you
  are writing.
  */
-flog_result_t flogfs_open_write(flog_write_file_t * file, char const * filename);
+flog_result_t flogfs_open_write(flog_write_file_t *file, char const *filename);
 
 /*!
  @brief Close a file which has been opened for reading
@@ -212,7 +205,7 @@ flog_result_t flogfs_open_write(flog_write_file_t * file, char const * filename)
  @retval FLOG_SUCCESS if successful
  @retval FLOG_FAILURE otherwise
  */
-flog_result_t flogfs_close_read(flog_read_file_t * file);
+flog_result_t flogfs_close_read(flog_read_file_t *file);
 
 /*!
  @brief Close a file which has been opened for writing
@@ -220,13 +213,13 @@ flog_result_t flogfs_close_read(flog_read_file_t * file);
  @retval FLOG_SUCCESS if successful
  @retval FLOG_FAILURE otherwise
  */
-flog_result_t flogfs_close_write(flog_write_file_t * file);
+flog_result_t flogfs_close_write(flog_write_file_t *file);
 
 /*!
  @brief Remove a file from the filesystem
  @param filename The name of the file
  */
-flog_result_t flogfs_rm(char const * filename);
+flog_result_t flogfs_rm(char const *filename);
 
 /*!
  @brief Read data from an open file
@@ -235,7 +228,7 @@ flog_result_t flogfs_rm(char const * filename);
  @param nbytes The number of bytes to try to read
  @returns The number of bytes read
  */
-uint32_t flogfs_read(flog_read_file_t * file, uint8_t * dst, uint32_t nbytes);
+uint32_t flogfs_read(flog_read_file_t *file, uint8_t *dst, uint32_t nbytes);
 
 /*!
  @brief Write data to an open file
@@ -244,8 +237,7 @@ uint32_t flogfs_read(flog_read_file_t * file, uint8_t * dst, uint32_t nbytes);
  @param nbytes The number of bytes to try to write
  @returns The number of bytes written
  */
-uint32_t flogfs_write(flog_write_file_t * file, uint8_t const * src,
-                      uint32_t nbytes);
+uint32_t flogfs_write(flog_write_file_t *file, uint8_t const *src, uint32_t nbytes);
 
 /*!
  @brief Check if a file exists in the filesystem
@@ -253,12 +245,12 @@ uint32_t flogfs_write(flog_write_file_t * file, uint8_t const * src,
  @retval FLOG_SUCCESS If the file exists
  @retval FLOG_FAILURE If the file doesn't exist
  */
-flog_result_t flogfs_check_exists(char const * filename);
+flog_result_t flogfs_check_exists(char const *filename);
 
 /*!
  @brief Start listing files (lock inode table)
  */
-void flogfs_start_ls(flogfs_ls_iterator_t * iter);
+void flogfs_start_ls(flogfs_ls_iterator_t *iter);
 
 /*!
  @brief Read another filename
@@ -266,12 +258,12 @@ void flogfs_start_ls(flogfs_ls_iterator_t * iter);
  @retval 1 Successful
  @retval 0 This is the end of the data
  */
-uint_fast8_t flogfs_ls_iterate(flogfs_ls_iterator_t * iter, char * fname_dst);
+uint_fast8_t flogfs_ls_iterate(flogfs_ls_iterator_t *iter, char *fname_dst);
 
 /*!
  @brief Unlock the inode table when done listing
  */
-void flogfs_stop_ls(flogfs_ls_iterator_t * iter);
+void flogfs_stop_ls(flogfs_ls_iterator_t *iter);
 
 #if !FLOG_BUILD_CPP
 #ifdef __cplusplus

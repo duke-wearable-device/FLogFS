@@ -60,23 +60,17 @@ either expressed or implied, of the FLogFS Project.
 // 	#endif
 // #endif
 
-
 #define STRING2(x) #x
 #define STRING(x) STRING2(x)
 #define LINESTR STRING(__LINE__)
 
-
-#define MAX(a,b) ((a > b) ? a : b)
-#define MIN(a,b) ((a > b) ? b : a)
-
+#define MAX(a, b) ((a > b) ? a : b)
+#define MIN(a, b) ((a > b) ? b : a)
 
 //! @addtogroup FLogPrivate
 //! @{
 
-typedef enum {
-	FLOG_STATE_RESET,
-	FLOG_STATE_MOUNTED
-} flog_state_t;
+typedef enum { FLOG_STATE_RESET, FLOG_STATE_MOUNTED } flog_state_t;
 
 /*!
  @brief A block type stored in the first byte of the first sector spare
@@ -84,17 +78,17 @@ typedef enum {
  Those values not present represent an error
  */
 typedef enum {
-	FLOG_BLOCK_TYPE_ERROR = 0,
-	FLOG_BLOCK_TYPE_UNALLOCATED = 0xFF,
-	FLOG_BLOCK_TYPE_INODE = 1,
-	FLOG_BLOCK_TYPE_FILE = 2
+    FLOG_BLOCK_TYPE_ERROR = 0,
+    FLOG_BLOCK_TYPE_UNALLOCATED = 0xFF,
+    FLOG_BLOCK_TYPE_INODE = 1,
+    FLOG_BLOCK_TYPE_FILE = 2
 } flog_block_type_t;
 
 //! @name Invalid values
 //! @{
 #define FLOG_BLOCK_IDX_INVALID ((flog_block_idx_t)(-1))
 #define FLOG_BLOCK_AGE_INVALID ((flog_block_age_t)(-1))
-#define FLOG_FILE_ID_INVALID   ((flog_file_id_t)(-1))
+#define FLOG_FILE_ID_INVALID ((flog_file_id_t)(-1))
 #define FLOG_TIMESTAMP_INVALID ((flog_timestamp_t)(-1))
 #define FLOG_SECTOR_NBYTES_INVALID ((flog_sector_nbytes_t)(-1))
 //! @}
@@ -104,74 +98,73 @@ static uint8_t const flog_copy_complete_marker = 0x55;
 
 static char const flog_block_stat_key[] = "Bears";
 
-
 typedef struct {
-	//! The age of the block
-	flog_block_age_t age;
-	//! The timestamp of the invalidation
-	flog_timestamp_t timestamp;
-	//! The next block in the chain
-	flog_block_idx_t next_block;
-	//! The age of @ref next_block
-	flog_block_age_t next_age;
+    //! The age of the block
+    flog_block_age_t age;
+    //! The timestamp of the invalidation
+    flog_timestamp_t timestamp;
+    //! The next block in the chain
+    flog_block_idx_t next_block;
+    //! The age of @ref next_block
+    flog_block_age_t next_age;
 } flog_block_stat_sector_t;
 
 //! @defgroup FLogInodeBlockStructs Inode block structures
 //! @brief Descriptions of the data in inode blocks
 //! @{
 typedef struct {
-	//flog_block_age_t age;
-	flog_timestamp_t timestamp;
-	flog_block_idx_t previous;
+    // flog_block_age_t age;
+    flog_timestamp_t timestamp;
+    flog_block_idx_t previous;
 } flog_inode_init_sector_t;
 
 typedef struct {
-	uint8_t type_id;
-	uint8_t nothing;
-	inode_index_t inode_index;
+    uint8_t type_id;
+    uint8_t nothing;
+    inode_index_t inode_index;
 } flog_inode_init_sector_spare_t;
 
 typedef struct {
-	flog_timestamp_t timestamp;
-	flog_block_idx_t replacement_id;
-	flog_block_age_t replacement_age;
+    flog_timestamp_t timestamp;
+    flog_block_idx_t replacement_id;
+    flog_block_age_t replacement_age;
 } flog_inode_invalidation_sector_t;
 
 typedef struct {
-	flog_file_id_t file_id;
-	flog_block_idx_t first_block;
-	flog_block_age_t first_block_age;
-	flog_timestamp_t timestamp;
+    flog_file_id_t file_id;
+    flog_block_idx_t first_block;
+    flog_block_age_t first_block_age;
+    flog_timestamp_t timestamp;
 } flog_inode_file_allocation_header_t;
 
 typedef struct {
-	flog_inode_file_allocation_header_t header;
-	char filename[FLOG_MAX_FNAME_LEN];
+    flog_inode_file_allocation_header_t header;
+    char filename[FLOG_MAX_FNAME_LEN];
 } flog_inode_file_allocation_t;
 
 typedef struct {
-	uint8_t copy_complete_marker;
+    uint8_t copy_complete_marker;
 } flog_inode_file_allocation_spare_t;
 
 typedef struct {
-	flog_timestamp_t timestamp;
-	flog_block_idx_t last_block;
+    flog_timestamp_t timestamp;
+    flog_block_idx_t last_block;
 } flog_inode_file_invalidation_t;
 
 //! @} // Inode structures
 
 typedef struct {
-	flog_block_age_t age;
+    flog_block_age_t age;
 } flog_universal_init_sector_header_t;
 
 typedef struct {
-	flog_timestamp_t timestamp;
+    flog_timestamp_t timestamp;
 } flog_universal_invalidation_header_t;
 
 typedef struct {
-	flog_block_idx_t next_block;
-	flog_block_age_t next_age;
-	flog_timestamp_t timestamp;
+    flog_block_idx_t next_block;
+    flog_block_age_t next_age;
+    flog_timestamp_t timestamp;
 } flog_universal_tail_sector_t;
 
 //! @defgroup FLogFileBlockStructs File block structures
@@ -179,54 +172,52 @@ typedef struct {
 //! @{
 
 typedef struct {
-	flog_timestamp_t timestamp;
-	flog_block_age_t age;
-	flog_file_id_t file_id;
+    flog_timestamp_t timestamp;
+    flog_block_age_t age;
+    flog_file_id_t file_id;
 } flog_file_init_sector_header_t;
 
 typedef struct {
-	flog_file_init_sector_header_t header;
-	uint8_t data[FS_SECTOR_SIZE - sizeof(flog_file_init_sector_header_t)];
+    flog_file_init_sector_header_t header;
+    uint8_t data[FS_SECTOR_SIZE - sizeof(flog_file_init_sector_header_t)];
 } flog_file_init_sector_t;
 
 typedef struct {
-	flog_block_idx_t next_block;
-	flog_block_age_t next_age;
-	flog_timestamp_t timestamp;
-	flog_sector_nbytes_t bytes_in_block;
+    flog_block_idx_t next_block;
+    flog_block_age_t next_age;
+    flog_timestamp_t timestamp;
+    flog_sector_nbytes_t bytes_in_block;
 } flog_file_tail_sector_header_t;
 
 typedef struct {
-	flog_file_tail_sector_header_t header;
-	uint8_t data[FS_SECTOR_SIZE - sizeof(flog_file_tail_sector_header_t)];
+    flog_file_tail_sector_header_t header;
+    uint8_t data[FS_SECTOR_SIZE - sizeof(flog_file_tail_sector_header_t)];
 } flog_file_tail_sector_t;
 
 typedef struct {
-	uint8_t type_id;
-	uint8_t nothing;
-	flog_sector_nbytes_t nbytes;
+    uint8_t type_id;
+    uint8_t nothing;
+    flog_sector_nbytes_t nbytes;
 } flog_file_sector_spare_t;
 
 typedef struct {
-	flog_timestamp_t timestamp;
-	flog_block_age_t next_age;
+    flog_timestamp_t timestamp;
+    flog_block_age_t next_age;
 } flog_file_invalidation_sector_t;
 
 //! @}
 
-
 //! @name Special sector indices
 //! @{
 typedef enum {
-	FLOG_BLK_STAT_SECTOR           = (0),
-	FLOG_INIT_SECTOR               = (1),
-	FLOG_TAIL_SECTOR               = (3),
-	FLOG_FILE_FIRST_DATA_SECTOR    = (2),
-	FLOG_INODE_FIRST_ENTRY_SECTOR  = (4)
+    FLOG_BLK_STAT_SECTOR = (0),
+    FLOG_INIT_SECTOR = (1),
+    FLOG_TAIL_SECTOR = (3),
+    FLOG_FILE_FIRST_DATA_SECTOR = (2),
+    FLOG_INODE_FIRST_ENTRY_SECTOR = (4)
 } flog_sector_special_idx_t;
 //! @}
 
 //! @} // FLogPrivate
-
 
 #endif // __FLOGFS_PRIVATE_H_

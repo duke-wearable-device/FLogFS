@@ -45,17 +45,16 @@ typedef uint8_t flash_spare_t[59];
 
 typedef Mutex fs_lock_t;
 
-
-static inline void fs_lock_init(fs_lock_t * lock){
-	chMtxInit(lock);
+static inline void fs_lock_init(fs_lock_t *lock) {
+    chMtxInit(lock);
 }
 
-static inline void fs_lock(fs_lock_t * lock){
-	chMtxLock(lock);
+static inline void fs_lock(fs_lock_t *lock) {
+    chMtxLock(lock);
 }
 
-static inline void fs_unlock(fs_lock_t * lock){
-	chMtxUnlock();
+static inline void fs_unlock(fs_lock_t *lock) {
+    chMtxUnlock();
 }
 
 static flash_spare_t flog_spare_buffer;
@@ -64,67 +63,65 @@ static uint16_t flash_page;
 static uint8_t have_metadata;
 static uint8_t page_open;
 
-static inline flog_result_t flash_init(){
-	page_open = 0;
-	return FLOG_RESULT(flash.init());
+static inline flog_result_t flash_init() {
+    page_open = 0;
+    return FLOG_RESULT(flash.init());
 }
 
-static inline void flash_lock(){
-	flash.lock();
+static inline void flash_lock() {
+    flash.lock();
 }
 
-static inline void flash_unlock(){
-	flash.unlock();
+static inline void flash_unlock() {
+    flash.unlock();
 }
 
-static inline flog_result_t flash_open_page(uint16_t block, uint16_t page){
-	flash_block = block;
-	flash_page = page;
-	have_metadata = 0;
+static inline flog_result_t flash_open_page(uint16_t block, uint16_t page) {
+    flash_block = block;
+    flash_page = page;
+    have_metadata = 0;
 
-	// Read flash page to cache
-	return FLOG_RESULT(flash.page_open(block, page));
+    // Read flash page to cache
+    return FLOG_RESULT(flash.page_open(block, page));
 }
 
-static inline void flash_close_page(){
-	page_open = 0;
-	flash.unlock();
+static inline void flash_close_page() {
+    page_open = 0;
+    flash.unlock();
 }
 
-static inline flog_result_t flash_erase_block(uint16_t block){
-	page_open = 0;
-	return FLOG_RESULT(flash.erase_block(block));
+static inline flog_result_t flash_erase_block(uint16_t block) {
+    page_open = 0;
+    return FLOG_RESULT(flash.erase_block(block));
 }
 
-static inline flog_result_t flash_get_spares(){
-	// Read metadata from flash
-	if(!have_metadata){
-		have_metadata = 1;
-	}
-	return FLOG_RESULT(flash.page_read_continued(flog_spare_buffer, 0x800,
-	                                             sizeof(flog_spare_buffer)));
+static inline flog_result_t flash_get_spares() {
+    // Read metadata from flash
+    if (!have_metadata) {
+        have_metadata = 1;
+    }
+    return FLOG_RESULT(flash.page_read_continued(flog_spare_buffer, 0x800, sizeof(flog_spare_buffer)));
 }
 
-static inline uint8_t * flash_spare(uint8_t sector){
-	return &flog_spare_buffer[sector * 16 + 4];
+static inline uint8_t *flash_spare(uint8_t sector) {
+    return &flog_spare_buffer[sector * 16 + 4];
 }
 
-static inline flog_result_t flash_block_is_bad(){
-	uint8_t buffer;
-	flash.page_read_continued(&buffer, 0x800, 1);
-	return FLOG_RESULT(buffer == 0);
+static inline flog_result_t flash_block_is_bad() {
+    uint8_t buffer;
+    flash.page_read_continued(&buffer, 0x800, 1);
+    return FLOG_RESULT(buffer == 0);
 }
 
-static inline void flash_set_bad_block(){
-
+static inline void flash_set_bad_block() {
 }
 
 /*!
  @brief Commit the changes to the active page
  */
-static inline void flash_commit(){
-	page_open = 0;
-	flash.page_commit();
+static inline void flash_commit() {
+    page_open = 0;
+    flash.page_commit();
 }
 
 /*!
@@ -135,12 +132,12 @@ static inline void flash_commit(){
  @param n The number of bytes to transfer
  @return The success or failure of the operation
  */
-static inline flog_result_t flash_read_sector(uint8_t * dst, uint8_t sector, uint16_t offset, uint16_t n){
-	return FLOG_RESULT(flash.page_read_continued(dst, FS_SECTOR_SIZE * sector + offset, n));
+static inline flog_result_t flash_read_sector(uint8_t *dst, uint8_t sector, uint16_t offset, uint16_t n) {
+    return FLOG_RESULT(flash.page_read_continued(dst, FS_SECTOR_SIZE * sector + offset, n));
 }
 
-static inline flog_result_t flash_read_spare(uint8_t * dst, uint8_t sector){
-	return FLOG_RESULT(flash.page_read_continued(dst, FS_SECTOR_SIZE * sector, 4));
+static inline flog_result_t flash_read_spare(uint8_t *dst, uint8_t sector) {
+    return FLOG_RESULT(flash.page_read_continued(dst, FS_SECTOR_SIZE * sector, 4));
 }
 
 /*!
@@ -150,10 +147,9 @@ static inline flog_result_t flash_read_spare(uint8_t * dst, uint8_t sector){
  @param offset The offset to write the data
  @param n The number of bytes to write
  */
-static inline void flash_write_sector(uint8_t const * src, uint8_t sector, uint16_t offset, uint16_t n){
-	flash.page_write_continued(src, FS_SECTOR_SIZE * sector + offset, n);
+static inline void flash_write_sector(uint8_t const *src, uint8_t sector, uint16_t offset, uint16_t n) {
+    flash.page_write_continued(src, FS_SECTOR_SIZE * sector + offset, n);
 }
-
 
 /*!
  @brief Write the spare data for a sector
@@ -161,14 +157,14 @@ static inline void flash_write_sector(uint8_t const * src, uint8_t sector, uint1
 
  @note This doesn't commit the transaction
  */
-static inline void flash_write_spare(uint8_t const * src, uint8_t sector){
-	flash.page_write_continued(src, 0x804 + sector * 0x10, 4);
+static inline void flash_write_spare(uint8_t const *src, uint8_t sector) {
+    flash.page_write_continued(src, 0x804 + sector * 0x10, 4);
 }
 
-static inline void flash_debug_warn(char const * msg){
-	evt_log.add(msg, EventItem::SEVERITY_WARNING);
+static inline void flash_debug_warn(char const *msg) {
+    evt_log.add(msg, EventItem::SEVERITY_WARNING);
 }
 
-static inline void flash_debug_error(char const * msg){
-	evt_log.add(msg, EventItem::SEVERITY_ERROR);
+static inline void flash_debug_error(char const *msg) {
+    evt_log.add(msg, EventItem::SEVERITY_ERROR);
 }

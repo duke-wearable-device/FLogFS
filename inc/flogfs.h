@@ -83,6 +83,7 @@ typedef uint16_t flog_block_idx_t;
 typedef uint32_t flog_block_age_t;
 typedef uint32_t flog_file_id_t;
 typedef uint16_t flog_sector_nbytes_t;
+typedef uint32_t flog_block_nbytes_t;
 typedef uint16_t inode_index_t;
 //! @}
 
@@ -151,7 +152,7 @@ typedef struct flog_write_file_t {
     //! The number of bytes remaining in the sector before forcing a cache flush
     uint16_t sector_remaining_bytes;
     //! Bytes in block (so far)
-    uint16_t bytes_in_block;
+    flog_block_nbytes_t bytes_in_block;
     uint32_t block_age;
     uint32_t id;
 

@@ -186,7 +186,7 @@ typedef struct {
     flog_block_idx_t next_block;
     flog_block_age_t next_age;
     flog_timestamp_t timestamp;
-    flog_sector_nbytes_t bytes_in_block;
+    flog_block_nbytes_t bytes_in_block;
 } flog_file_tail_sector_header_t;
 
 typedef struct {

@@ -4,13 +4,15 @@
 #include "flogfs.h"
 #include "flogfs_linux.h"
 
-typedef uint8_t flash_spare_t[59];
-
 typedef void *fs_lock_t;
 
 #define fslog_linux_trace(f, ...)
 
-#define fslog_linux_debug(f, ...) printf("flogfs: " f, ##__VA_ARGS__)
+#define fslog_linux_debug(f, ...) // printf("flogfs: " f, ##__VA_ARGS__)
+
+static inline void memzero(void *ptr, size_t size) {
+    memset(ptr, 0, size);
+}
 
 static inline void fs_lock_init(fs_lock_t *lock) {
     fslog_linux_trace("fs_lock_init\n");
@@ -25,8 +27,8 @@ static inline void fs_unlock(fs_lock_t *lock) {
 }
 
 static void *mapped{ nullptr };
-static uint16_t flash_block;
-static uint16_t flash_page;
+static uint16_t flash_block{ 0 };
+static uint16_t flash_page{ 0 };
 
 static inline flog_result_t flash_init() {
     mapped = flogfs_linux_get();
@@ -35,7 +37,8 @@ static inline flog_result_t flash_init() {
 }
 
 static inline uint32_t get_offset(uint16_t block, uint16_t page, uint8_t sector, uint16_t offset) {
-    return (block * FS_SECTORS_PER_BLOCK * FS_SECTOR_SIZE) + (page * FS_SECTORS_PER_PAGE * FS_SECTOR_SIZE) +
+    return (block * FS_SECTORS_PER_BLOCK_INTERNAL * FS_SECTOR_SIZE) +
+           (page * FS_SECTORS_PER_PAGE_INTERNAL * FS_SECTOR_SIZE) +
            (sector * FS_SECTOR_SIZE) + offset;
 }
 
@@ -70,7 +73,7 @@ static inline void flash_close_page() {
 
 static inline flog_result_t flash_erase_block(uint16_t block) {
     fslog_linux_debug("flash_erase_block(%d)\n", block);
-    memset(mapped_sector_absolute_ptr(block, 0, 0, 0), 0xff, FS_SECTORS_PER_BLOCK * FS_SECTOR_SIZE);
+    memset(mapped_sector_absolute_ptr(block, 0, 0, 0), 0xff, FS_SECTORS_PER_BLOCK_INTERNAL * FS_SECTOR_SIZE);
     return FLOG_RESULT(FLOG_SUCCESS);
 }
 
@@ -87,6 +90,20 @@ static inline void flash_commit() {
     fslog_linux_trace("flash_commit\n");
 }
 
+static inline bool verified_memcpy(void *dst, const void *src, size_t size) {
+    auto unerased = false;
+    for (auto i = 0; i < size; ++i) {
+        if (((uint8_t *)dst)[i] != 0xff) {
+            unerased = true;
+            fprintf(stderr, "UNERASED: %p (%ld)\n", (uint8_t *)dst + i, size);
+            assert(false);
+            break;
+        }
+    }
+    memcpy(dst, src, size);
+    return !unerased;
+}
+
 static inline flog_result_t flash_read_sector(uint8_t *dst, uint8_t sector, uint16_t offset, uint16_t n) {
     fslog_linux_debug("flash_read_sector(%p, %d, %d, %d)\n", dst, sector, offset, n);
     sector = sector % FS_SECTORS_PER_PAGE;
@@ -99,7 +116,7 @@ static inline flog_result_t flash_read_spare(uint8_t *dst, uint8_t sector) {
     fslog_linux_debug("flash_read_spare(%p, %d)\n", dst, sector);
     sector = sector % FS_SECTORS_PER_PAGE;
     auto src = mapped_sector_ptr(0, 0x804 + sector * 0x10);
-    memcpy(dst, src, 4);
+    memcpy(dst, src, sizeof(flog_file_sector_spare_t));
     return FLOG_SUCCESS;
 }
 
@@ -107,14 +124,14 @@ static inline void flash_write_sector(uint8_t const *src, uint8_t sector, uint16
     fslog_linux_debug("flash_write_sector(%p, %d, %d, %d)\n", src, sector, offset, n);
     sector = sector % FS_SECTORS_PER_PAGE;
     auto dst = mapped_sector_ptr(sector, offset);
-    memcpy(dst, src, n);
+    verified_memcpy(dst, src, n);
 }
 
 static inline void flash_write_spare(uint8_t const *src, uint8_t sector) {
     fslog_linux_debug("flash_write_spare(%p, %d)\n", src, sector);
     sector = sector % FS_SECTORS_PER_PAGE;
     auto dst = mapped_sector_ptr(0, 0x804 + sector * 0x10);
-    memcpy(dst, src, 4);
+    verified_memcpy(dst, src, sizeof(flog_file_sector_spare_t));
 }
 
 static inline void flash_debug_warn(char const *msg) {

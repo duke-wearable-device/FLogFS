@@ -4,8 +4,6 @@
 
 #include "flogfs_linux.h"
 
-static size_t MappedSize = FS_SECTOR_SIZE * FS_SECTORS_PER_BLOCK * FS_NUM_BLOCKS;
-
 static const char *path = "flash.bin";
 static void *mapped{ nullptr };
 static int32_t fd{ -1 };

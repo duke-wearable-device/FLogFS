@@ -222,7 +222,7 @@ static inline flog_result_t flog_open_sector(uint16_t block, uint16_t sector);
 
 static void flog_close_sector();
 
-static flog_result_t flogfs_read_file_size(flog_read_file_t *file);
+static flog_result_t flogfs_read_calc_file_size(flog_read_file_t *file);
 
 /*!
  @brief Initialize an inode iterator
@@ -783,14 +783,11 @@ flog_result_t flogfs_open_read(flog_read_file_t *file, char const *filename) {
         goto failure;
     }
 
-    file->block = find_result.first_block;
+    file->first_block = find_result.first_block;
+    file->block = file->first_block;
     file->id = find_result.file_id;
 
-    flogfs_read_file_size(file);
-
-    /////////////
-    // Actual file search
-    /////////////
+    flogfs_read_calc_file_size(file);
 
     // Now go find the start of file data (either first or second sector)
     // and adjust some settings
@@ -1019,11 +1016,115 @@ done:
     return count;
 }
 
-flog_result_t flogfs_seek(flog_read_file_t *file, uint32_t index) {
-    return FLOG_FAILURE;
+uint32_t flogfs_read_file_size(flog_read_file_t *file) {
+    return file->file_size;
 }
 
-static flog_result_t flogfs_read_file_size(flog_read_file_t *file) {
+uint32_t flogfs_write_file_size(flog_write_file_t *file) {
+    return file->file_size;
+}
+
+typedef enum {
+    FLOG_WALK_FAILURE,
+    FLOG_WALK_CONTINUE,
+    FLOG_WALK_STOP,
+    FLOG_WALK_SKIP_BLOCK,
+} flog_read_walk_result_t;
+
+typedef flog_read_walk_result_t (*file_walk_fn_t)(flog_file_tail_sector_header_t *block, flog_file_sector_spare_t *sector, void *arg);
+
+flog_read_walk_result_t file_size_calculator_walk(flog_file_tail_sector_header_t *block, flog_file_sector_spare_t *sector, void *arg) {
+    if (sector != nullptr) {
+        *((uint32_t *)arg) += sector->nbytes;
+    }
+    else {
+        auto last_block = block->timestamp == FLOG_TIMESTAMP_INVALID;
+        if (!last_block) {
+            *((uint32_t *)arg) += block->bytes_in_block;
+            return FLOG_WALK_SKIP_BLOCK;
+        }
+    }
+
+    return FLOG_WALK_CONTINUE;
+}
+
+static flog_read_walk_result_t flogfs_read_walk_sectors(flog_read_file_t *file, uint16_t block, flog_file_tail_sector_header_t *file_tail_sector_header, file_walk_fn_t walk, void *arg) {
+    flog_file_sector_spare_t file_sector_spare;
+    uint16_t sector = FLOG_INIT_SECTOR;
+
+    while (true) {
+        flog_open_sector(block, sector);
+        flash_read_spare((uint8_t *)&file_sector_spare, sector);
+        if (file_sector_spare.nbytes == FLOG_SECTOR_NBYTES_INVALID) {
+            break;
+        }
+
+        switch (walk(file_tail_sector_header, &file_sector_spare, arg)) {
+        case FLOG_WALK_FAILURE: {
+            return FLOG_WALK_FAILURE;
+        }
+        case FLOG_WALK_STOP: {
+            return FLOG_WALK_STOP;
+        }
+        case FLOG_WALK_SKIP_BLOCK: {
+            return FLOG_WALK_CONTINUE;
+        }
+        }
+
+        if (sector == FLOG_TAIL_SECTOR) {
+            break;
+        }
+
+        sector = flog_increment_sector(sector);
+    }
+
+    return FLOG_WALK_CONTINUE;
+}
+
+static flog_result_t flogfs_read_walk_file(flog_read_file_t *file, file_walk_fn_t walk, void *arg) {
+    uint16_t block = file->first_block;
+
+    while (1) {
+        flog_file_tail_sector_header_t file_tail_sector_header;
+
+        flog_open_sector(block, FLOG_TAIL_SECTOR);
+        flash_read_sector((uint8_t *)&file_tail_sector_header, FLOG_TAIL_SECTOR, 0, sizeof(flog_file_tail_sector_header_t));
+        auto last_block = file_tail_sector_header.timestamp == FLOG_TIMESTAMP_INVALID;
+
+        switch (walk(&file_tail_sector_header, nullptr, arg)) {
+        case FLOG_WALK_FAILURE: {
+            return FLOG_FAILURE;
+        }
+        case FLOG_WALK_STOP: {
+            return FLOG_SUCCESS;
+        }
+        case FLOG_WALK_CONTINUE: {
+            switch (flogfs_read_walk_sectors(file, block, &file_tail_sector_header, walk, arg)) {
+            case FLOG_WALK_FAILURE: {
+                return FLOG_FAILURE;
+            }
+            case FLOG_WALK_STOP: {
+                return FLOG_SUCCESS;
+            }
+            }
+            break;
+        }
+        case FLOG_WALK_SKIP_BLOCK: {
+            break;
+        }
+        }
+
+        if (last_block) {
+            break;
+        }
+
+        block = file_tail_sector_header.next_block;
+    }
+
+    return FLOG_SUCCESS;
+}
+
+static flog_result_t flogfs_read_calc_file_size(flog_read_file_t *file) {
     flog_file_tail_sector_header_t file_tail_sector_header;
     flog_file_sector_spare_t file_sector_spare;
 
@@ -1043,11 +1144,6 @@ static flog_result_t flogfs_read_file_size(flog_read_file_t *file) {
     }
     // Now file->block is the first incomplete block, scan it sector-by-sector
 
-    // Check out init sector no matter what and move on. It might have no data
-    flog_open_sector(block, FLOG_INIT_SECTOR);
-    flash_read_spare((uint8_t *)&file_sector_spare, FLOG_INIT_SECTOR);
-    file->file_size += file_sector_spare.nbytes;
-    sector = flog_increment_sector(sector);
     while (1) {
         flog_open_sector(block, sector);
         flash_read_spare((uint8_t *)&file_sector_spare, sector);
@@ -1058,7 +1154,17 @@ static flog_result_t flogfs_read_file_size(flog_read_file_t *file) {
         sector = flog_increment_sector(sector);
     }
 
+    uint32_t size = 0;
+    flogfs_read_walk_file(file, file_size_calculator_walk, &size);
+    if (size != file->file_size) {
+        printf("%d vs %d\n", size, file->file_size);
+    }
+
     return FLOG_SUCCESS;
+}
+
+flog_result_t flogfs_read_seek(flog_read_file_t *file, uint32_t position) {
+    return FLOG_FAILURE;
 }
 
 flog_result_t flogfs_open_write(flog_write_file_t *file, char const *filename) {
@@ -1110,10 +1216,10 @@ flog_result_t flogfs_open_write(flog_write_file_t *file, char const *filename) {
 
         // Check out init sector no matter what and move on.
         // It might have no data
-        flog_open_sector(file->block, FLOG_INIT_SECTOR);
-        flash_read_spare(&spare_buffer_union.spare_buffer, FLOG_INIT_SECTOR);
-        file->file_size += spare_buffer_union.file_sector_spare.nbytes;
-        file->sector = flog_increment_sector(file->sector);
+        // flog_open_sector(file->block, FLOG_INIT_SECTOR);
+        // flash_read_spare(&spare_buffer_union.spare_buffer, FLOG_INIT_SECTOR);
+        // file->file_size += spare_buffer_union.file_sector_spare.nbytes;
+        // file->sector = flog_increment_sector(file->sector);
         while (1) {
             // For each block in the file
             flog_open_sector(file->block, file->sector);

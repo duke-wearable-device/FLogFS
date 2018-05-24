@@ -120,6 +120,7 @@ typedef struct flog_read_file_t {
     //! Offset of read head from the start of the file
     uint32_t read_head;
     //! Block index of read head
+    uint16_t first_block;
     uint16_t block;
     //! Sector index of read head
     uint16_t sector;
@@ -201,6 +202,12 @@ flog_result_t flogfs_open_read(flog_read_file_t *file, char const *filename);
  are writing.
  */
 flog_result_t flogfs_open_write(flog_write_file_t *file, char const *filename);
+
+uint32_t flogfs_read_file_size(flog_read_file_t *file);
+
+uint32_t flogfs_write_file_size(flog_write_file_t *file);
+
+flog_result_t flogfs_read_seek(flog_read_file_t *file, uint32_t position);
 
 /*!
  @brief Close a file which has been opened for reading

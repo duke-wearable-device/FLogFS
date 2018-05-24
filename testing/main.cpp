@@ -23,9 +23,8 @@ size_t write_file(const char *path) {
     if (!flogfs_check_exists(path)) {
         size_t size = 0;
         flog_write_file_t file;
-        std::cout << "Creating " << path << std::endl;
-        flog_check(flogfs_open_write(&file, path));
         std::cout << "Writing " << path << std::endl;
+        flog_check(flogfs_open_write(&file, path));
         for (auto i = 0; i < 1024 * 26; ++i) {
             size += flogfs_write(&file, (uint8_t *)Pattern, strlen(Pattern));
         }

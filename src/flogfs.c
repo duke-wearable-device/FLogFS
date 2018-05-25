@@ -1024,6 +1024,14 @@ uint32_t flogfs_write_file_size(flog_write_file_t *file) {
     return file->file_size;
 }
 
+typedef struct flogfs_walk_state_t {
+    uint16_t block;
+    uint16_t sector;
+    bool last_block;
+    flog_file_tail_sector_header_t *tail_header;
+    flog_file_sector_spare_t *sector_spare;
+} flogfs_walk_state_t;
+
 typedef enum {
     FLOG_WALK_FAILURE,
     FLOG_WALK_CONTINUE,
@@ -1031,35 +1039,22 @@ typedef enum {
     FLOG_WALK_SKIP_BLOCK,
 } flog_read_walk_result_t;
 
-typedef flog_read_walk_result_t (*file_walk_fn_t)(flog_file_tail_sector_header_t *block, flog_file_sector_spare_t *sector, void *arg);
+typedef flog_read_walk_result_t (*file_walk_fn_t)(flogfs_walk_state_t *state, void *arg);
 
-flog_read_walk_result_t file_size_calculator_walk(flog_file_tail_sector_header_t *block, flog_file_sector_spare_t *sector, void *arg) {
-    if (sector != nullptr) {
-        *((uint32_t *)arg) += sector->nbytes;
-    }
-    else {
-        auto last_block = block->timestamp == FLOG_TIMESTAMP_INVALID;
-        if (!last_block) {
-            *((uint32_t *)arg) += block->bytes_in_block;
-            return FLOG_WALK_SKIP_BLOCK;
-        }
-    }
-
-    return FLOG_WALK_CONTINUE;
-}
-
-static flog_read_walk_result_t flogfs_read_walk_sectors(flog_read_file_t *file, uint16_t block, flog_file_tail_sector_header_t *file_tail_sector_header, file_walk_fn_t walk, void *arg) {
+static flog_read_walk_result_t flogfs_read_walk_sectors(flog_read_file_t *file, flogfs_walk_state_t *state, file_walk_fn_t walk, void *arg) {
     flog_file_sector_spare_t file_sector_spare;
-    uint16_t sector = FLOG_INIT_SECTOR;
+
+    state->sector = FLOG_INIT_SECTOR;
+    state->sector_spare = &file_sector_spare;
 
     while (true) {
-        flog_open_sector(block, sector);
-        flash_read_spare((uint8_t *)&file_sector_spare, sector);
+        flog_open_sector(state->block, state->sector);
+        flash_read_spare((uint8_t *)&file_sector_spare, state->sector);
         if (file_sector_spare.nbytes == FLOG_SECTOR_NBYTES_INVALID) {
             break;
         }
 
-        switch (walk(file_tail_sector_header, &file_sector_spare, arg)) {
+        switch (walk(state, arg)) {
         case FLOG_WALK_FAILURE: {
             return FLOG_WALK_FAILURE;
         }
@@ -1071,27 +1066,30 @@ static flog_read_walk_result_t flogfs_read_walk_sectors(flog_read_file_t *file, 
         }
         }
 
-        if (sector == FLOG_TAIL_SECTOR) {
+        if (state->sector == FLOG_TAIL_SECTOR) {
             break;
         }
 
-        sector = flog_increment_sector(sector);
+        state->sector = flog_increment_sector(state->sector);
     }
 
     return FLOG_WALK_CONTINUE;
 }
 
 static flog_result_t flogfs_read_walk_file(flog_read_file_t *file, file_walk_fn_t walk, void *arg) {
-    uint16_t block = file->first_block;
+    flog_file_tail_sector_header_t tail_header;
+    flogfs_walk_state_t state;
+    state.block = file->first_block;
+    state.tail_header = &tail_header;
 
     while (1) {
-        flog_file_tail_sector_header_t file_tail_sector_header;
+        state.sector_spare = nullptr;
 
-        flog_open_sector(block, FLOG_TAIL_SECTOR);
-        flash_read_sector((uint8_t *)&file_tail_sector_header, FLOG_TAIL_SECTOR, 0, sizeof(flog_file_tail_sector_header_t));
-        auto last_block = file_tail_sector_header.timestamp == FLOG_TIMESTAMP_INVALID;
+        flog_open_sector(state.block, FLOG_TAIL_SECTOR);
+        flash_read_sector((uint8_t *)&tail_header, FLOG_TAIL_SECTOR, 0, sizeof(flog_file_tail_sector_header_t));
+        state.last_block = tail_header.timestamp == FLOG_TIMESTAMP_INVALID;
 
-        switch (walk(&file_tail_sector_header, nullptr, arg)) {
+        switch (walk(&state, arg)) {
         case FLOG_WALK_FAILURE: {
             return FLOG_FAILURE;
         }
@@ -1099,7 +1097,7 @@ static flog_result_t flogfs_read_walk_file(flog_read_file_t *file, file_walk_fn_
             return FLOG_SUCCESS;
         }
         case FLOG_WALK_CONTINUE: {
-            switch (flogfs_read_walk_sectors(file, block, &file_tail_sector_header, walk, arg)) {
+            switch (flogfs_read_walk_sectors(file, &state, walk, arg)) {
             case FLOG_WALK_FAILURE: {
                 return FLOG_FAILURE;
             }
@@ -1114,14 +1112,28 @@ static flog_result_t flogfs_read_walk_file(flog_read_file_t *file, file_walk_fn_
         }
         }
 
-        if (last_block) {
+        if (state.last_block) {
             break;
         }
 
-        block = file_tail_sector_header.next_block;
+        state.block = tail_header.next_block;
     }
 
     return FLOG_SUCCESS;
+}
+
+flog_read_walk_result_t file_size_calculator_walk(flogfs_walk_state_t *state, void *arg) {
+    if (state->sector_spare != nullptr) {
+        *((uint32_t *)arg) += state->sector_spare->nbytes;
+    }
+    else {
+        if (!state->last_block) {
+            *((uint32_t *)arg) += state->tail_header->bytes_in_block;
+            return FLOG_WALK_SKIP_BLOCK;
+        }
+    }
+
+    return FLOG_WALK_CONTINUE;
 }
 
 static flog_result_t flogfs_read_calc_file_size(flog_read_file_t *file) {
@@ -1129,8 +1141,65 @@ static flog_result_t flogfs_read_calc_file_size(flog_read_file_t *file) {
     return flogfs_read_walk_file(file, file_size_calculator_walk, &file->file_size);
 }
 
+typedef struct file_seek_t {
+    uint32_t position;
+    uint32_t desired;
+    uint16_t block;
+    uint16_t sector;
+    uint16_t offset;
+    uint16_t bytes_remaining;
+} file_seek_t;
+
+flog_read_walk_result_t file_seek_walk(flogfs_walk_state_t *state, void *arg) {
+    file_seek_t *seek = (file_seek_t *)arg;
+
+    seek->block = state->block;
+    seek->sector = state->sector;
+
+    if (state->sector_spare == nullptr) {
+        if (state->last_block) {
+            return FLOG_WALK_CONTINUE;
+        }
+        uint32_t end_of_block = seek->position + state->tail_header->bytes_in_block;
+        if (seek->desired > end_of_block) {
+            seek->position = end_of_block;
+            return FLOG_WALK_SKIP_BLOCK;
+        }
+    }
+    else {
+        uint32_t end_of_sector = seek->position + state->sector_spare->nbytes;
+        if (seek->desired > end_of_sector) {
+            seek->position = end_of_sector;
+            return FLOG_WALK_CONTINUE;
+        }
+        else {
+            seek->offset = (seek->desired - seek->position);
+            seek->bytes_remaining = state->sector_spare->nbytes - seek->offset;
+            return FLOG_WALK_STOP;
+        }
+    }
+
+    return FLOG_WALK_CONTINUE;
+}
+
 flog_result_t flogfs_read_seek(flog_read_file_t *file, uint32_t position) {
-    return FLOG_FAILURE;
+    file_seek_t seek;
+
+    seek.position = 0;
+    seek.desired = position;
+    seek.block = file->first_block;
+    seek.sector = FLOG_INIT_SECTOR;
+
+    if (!flogfs_read_walk_file(file, file_seek_walk, &seek)) {
+        return FLOG_FAILURE;
+    }
+
+    file->block = seek.block;
+    file->sector = seek.sector;
+    file->offset = seek.offset;
+    file->sector_remaining_bytes = seek.bytes_remaining;
+
+    return FLOG_SUCCESS;
 }
 
 flog_result_t flogfs_open_write(flog_write_file_t *file, char const *filename) {

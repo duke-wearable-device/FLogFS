@@ -6,9 +6,7 @@
 #include <iostream>
 
 #include <flogfs.h>
-#include <flogfs_private.h>
-
-#include "flogfs_linux.h"
+#include <flogfs_linux_mmap.h>
 
 void flog_check(flog_result_t fr) {
     if (fr != FLOG_SUCCESS) {
@@ -99,7 +97,7 @@ void seek_file(const char *path, size_t expected_size) {
 }
 
 int32_t main(int argc, char *argv[]) {
-    flog_check(flogfs_linux_open());
+    flog_check(flogfs_linux_open("flash.bin"));
 
     flog_check(flogfs_init());
 

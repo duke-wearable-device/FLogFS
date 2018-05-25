@@ -49,6 +49,10 @@ extern "C" {
 
 #include "flogfs_conf_implement.h"
 
+static inline void memzero(void *ptr, size_t size) {
+    memset(ptr, 0, size);
+}
+
 //! @addtogroup FLogPrivate
 //! @{
 

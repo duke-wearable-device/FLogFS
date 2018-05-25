@@ -9,4 +9,6 @@ file(GLOB SOURCE_FILES *.cpp ../../src/*.cpp ../../backends/arduino-sd/*.cpp)
 
 arduino(arduino-zero-flogfs "${SOURCE_FILES}" "${LIBRARIES}")
 
+add_definitions("-DFLOG_ERASE_ZERO")
+
 target_include_directories(arduino-zero-flogfs PUBLIC ./ ../../inc ../../backends/arduino-sd)

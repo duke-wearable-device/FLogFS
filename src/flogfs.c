@@ -518,7 +518,7 @@ flog_result_t flogfs_mount() {
     flogfs.write_head = nullptr;
     flogfs.dirty_block.block = FLOG_BLOCK_IDX_INVALID;
 
-    min_age_block.age = 0xFFFFFFFF;
+    min_age_block.age = FLOG_BLOCK_AGE_INVALID;
     min_age_block.block = FLOG_BLOCK_IDX_INVALID;
 
     inode0_idx = FLOG_BLOCK_IDX_INVALID;
@@ -791,7 +791,9 @@ flog_result_t flogfs_open_read(flog_read_file_t *file, char const *filename) {
     file->block = file->first_block;
     file->id = find_result.file_id;
 
-    flogfs_read_calc_file_size(file);
+    if (!flogfs_read_calc_file_size(file)) {
+        goto failure;
+    }
 
     // Now go find the start of file data (either first or second sector)
     // and adjust some settings
@@ -1120,6 +1122,9 @@ static flog_result_t flogfs_read_walk_file(flog_read_file_t *file, file_walk_fn_
             break;
         }
 
+        if (state.block == tail_header.next_block) {
+            return FLOG_FAILURE;
+        }
         state.block = tail_header.next_block;
     }
 

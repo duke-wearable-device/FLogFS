@@ -3,6 +3,7 @@
 #include <Arduino.h>
 
 #include <flogfs.h>
+#include <flogfs_arduino_sd.h>
 
 static void flog_check(flog_result_t fr) {
     if (fr != FLOG_SUCCESS) {
@@ -36,6 +37,8 @@ void setup() {
     }
 
     Serial.println("Starting");
+
+    flog_check(flogfs_arduino_sd_open(12));
 
     flog_check(flogfs_init());
 

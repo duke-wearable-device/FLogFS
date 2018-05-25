@@ -14,6 +14,11 @@
 
 #define fslog_debug(f, ...) // printf("flogfs: " f, ##__VA_ARGS__)
 
+#ifdef FLOG_ERASE_ZERO
+constexpr uint8_t FS_ERASE_CHAR = 0x00;
+#else
+constexpr uint8_t FS_ERASE_CHAR = 0xff;
+#endif
 constexpr uint32_t FS_SECTORS_PER_PAGE_INTERNAL = (FS_SECTORS_PER_PAGE + 1);
 constexpr uint32_t FS_SECTORS_PER_BLOCK_INTERNAL = FS_SECTORS_PER_PAGE_INTERNAL * FS_PAGES_PER_BLOCK;
 constexpr uint32_t FS_MAPPED_SIZE = FS_SECTOR_SIZE * FS_SECTORS_PER_BLOCK_INTERNAL * FS_NUM_BLOCKS;
@@ -109,7 +114,7 @@ void flash_close_page() {
 
 flog_result_t flash_erase_block(uint16_t block) {
     fslog_debug("flash_erase_block(%d)\n", block);
-    memset(mapped_sector_absolute_ptr(block, 0, 0, 0), 0xff, FS_SECTORS_PER_BLOCK_INTERNAL * FS_SECTOR_SIZE);
+    memset(mapped_sector_absolute_ptr(block, 0, 0, 0), FS_ERASE_CHAR, FS_SECTORS_PER_BLOCK_INTERNAL * FS_SECTOR_SIZE);
     return FLOG_RESULT(FLOG_SUCCESS);
 }
 
@@ -125,7 +130,7 @@ void flash_commit() {
 
 static void verified_memcpy(void *dst, const void *src, size_t size) {
     for (auto i = 0; i < size; ++i) {
-        assert(((uint8_t *)dst)[i] == 0xff);
+        assert(((uint8_t *)dst)[i] == FS_ERASE_CHAR);
     }
     memcpy(dst, src, size);
 }

@@ -120,7 +120,7 @@ void ls_files() {
 
 int32_t main(int argc, char *argv[]) {
     flog_init_params_t params {
-        .number_of_blocks = 10,
+        .number_of_blocks = 100,
     };
 
     FLOG_CHECK(flogfs_linux_open(Path, false, params.number_of_blocks));

@@ -1574,8 +1574,6 @@ flog_result_t flog_commit_file_sector(flog_write_file_t *file, uint8_t const *da
         flogfs.dirty_block.block = next_block.block;
         flogfs.dirty_block.file = file;
 
-        flogfs.num_free_blocks -= 1;
-
         flog_unlock_allocate();
 
         uint16_t bytes_in_sector = FS_SECTOR_SIZE - sizeof(flog_file_tail_sector_header_t);
@@ -2026,6 +2024,7 @@ void flog_invalidate_chain(flog_block_idx_t base, flog_file_id_t file_id) {
     }
 done:
     flogfs.num_free_blocks += num_freed;
+    assert(flogfs.num_free_blocks > 0);
     flogfs.mean_free_age = flogfs.free_block_sum / flogfs.num_free_blocks;
     flogfs.t_allocation_ceiling = FLOG_TIMESTAMP_INVALID;
     flog_unlock_delete();
@@ -2048,6 +2047,7 @@ flog_block_alloc_t flog_allocate_block(int32_t threshold) {
     // flog_lock_allocate();
     if (flogfs.num_free_blocks == 0) {
         // No free blocks in the system. GTFO.
+        assert(flogfs.num_free_blocks > 0);
         block.block = FLOG_BLOCK_IDX_INVALID;
         // flog_unlock_allocate();
         return block;
@@ -2074,6 +2074,7 @@ flog_block_alloc_t flog_allocate_block(int32_t threshold) {
                 flogfs.free_block_bitmap[block.age / 8] &= ~(1 << (block.age % 8));
                 // BOOOOOO
                 flogfs.num_free_blocks -= 1;
+                assert(flogfs.num_free_blocks != 0);
                 flogfs.free_block_sum -= block.age;
                 flogfs.mean_free_age = flogfs.free_block_sum / flogfs.num_free_blocks;
                 // It's actually okay!

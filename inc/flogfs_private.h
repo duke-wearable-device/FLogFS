@@ -97,6 +97,7 @@ typedef enum {
 #define FLOG_FILE_ID_INVALID 0x00
 #define FLOG_TIMESTAMP_INVALID 0x00
 #define FLOG_SECTOR_NBYTES_INVALID 0x00
+#define FLOG_SECTOR_TYPE_ID_INVALID 0x00
 #define FS_FIRST_BLOCK 1
 #else
 #define FLOG_BLOCK_IDX_INVALID ((flog_block_idx_t)(-1))
@@ -104,6 +105,7 @@ typedef enum {
 #define FLOG_FILE_ID_INVALID ((flog_file_id_t)(-1))
 #define FLOG_TIMESTAMP_INVALID ((flog_timestamp_t)(-1))
 #define FLOG_SECTOR_NBYTES_INVALID ((flog_sector_nbytes_t)(-1))
+#define FLOG_SECTOR_TYPE_ID_INVALID ((uint8_t)-1)
 #define FS_FIRST_BLOCK 0
 #endif
 //! @}

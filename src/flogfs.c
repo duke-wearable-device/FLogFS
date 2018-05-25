@@ -412,6 +412,10 @@ flog_result_t flogfs_format() {
     return FLOG_SUCCESS;
 }
 
+static bool invalid_sector_spare(flog_file_sector_spare_t *spare) {
+    return spare->type_id == FLOG_SECTOR_TYPE_ID_INVALID && spare->nbytes == FLOG_SECTOR_NBYTES_INVALID;
+}
+
 flog_result_t flogfs_mount() {
     uint32_t i, done_scanning;
 
@@ -941,7 +945,7 @@ uint32_t flogfs_read(flog_read_file_t *file, uint8_t *dst, uint32_t nbytes) {
                 flog_open_sector(file->block, sector);
                 flash_read_spare(&spare_buffer_union.sector_spare, sector);
 
-                if (spare_buffer_union.file_sector_spare.nbytes == FLOG_SECTOR_NBYTES_INVALID) {
+                if (invalid_sector_spare(&spare_buffer_union.file_sector_spare)) {
                     // We're looking at an empty sector, GTFO
                     goto done;
                 } else {
@@ -1058,7 +1062,7 @@ static flog_read_walk_result_t flogfs_read_walk_sectors(flog_read_file_t *file, 
     while (true) {
         flog_open_sector(state->block, state->sector);
         flash_read_spare((uint8_t *)&file_sector_spare, state->sector);
-        if (file_sector_spare.nbytes == FLOG_SECTOR_NBYTES_INVALID) {
+        if (invalid_sector_spare(&file_sector_spare)) {
             break;
         }
 
@@ -1263,7 +1267,7 @@ flog_result_t flogfs_open_write(flog_write_file_t *file, char const *filename) {
             // For each block in the file
             flog_open_sector(file->block, file->sector);
             flash_read_spare(&spare_buffer_union.spare_buffer, file->sector);
-            if (spare_buffer_union.file_sector_spare.nbytes == FLOG_SECTOR_NBYTES_INVALID) {
+            if (invalid_sector_spare(&spare_buffer_union.file_sector_spare)) {
                 // No data
                 // We will write here!
                 if (file->sector == FLOG_TAIL_SECTOR) {

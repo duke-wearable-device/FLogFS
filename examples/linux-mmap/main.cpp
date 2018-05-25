@@ -101,7 +101,11 @@ int32_t main(int argc, char *argv[]) {
 
     flog_check(flogfs_init());
 
+    std::cout << "Formatting" << std::endl;
+
     flog_check(flogfs_format());
+
+    std::cout << "Mounting" << std::endl;
 
     flog_check(flogfs_mount());
 

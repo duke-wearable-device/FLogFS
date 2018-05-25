@@ -6,10 +6,12 @@
 
 uint8_t sd_raw_cs_high(sd_raw_t *sd) {
     digitalWrite(sd->cs, HIGH);
+    SPI.endTransaction();
     return true;
 }
 
 uint8_t sd_raw_cs_low(sd_raw_t *sd) {
+    SPI.beginTransaction(SPISettings(20000000, MSBFIRST, SPI_MODE0));
     digitalWrite(sd->cs, LOW);
     return true;
 }
@@ -201,7 +203,7 @@ static uint8_t sd_raw_read_csd(sd_raw_t *sd, csd_t* csd) {
     return sd_raw_read_register(sd, CMD9, csd);
 }
 
-static uint8_t sd_raw_read_data(sd_raw_t *sd, uint32_t block, uint16_t offset, uint16_t size, uint8_t *destiny) {
+uint8_t sd_raw_read_data(sd_raw_t *sd, uint32_t block, uint16_t offset, uint16_t size, uint8_t *destiny) {
     const uint8_t partialBlockRead = false;
 
     if (size == 0) {
@@ -322,6 +324,22 @@ uint8_t sd_raw_write_block(sd_raw_t *sd, uint32_t block, const uint8_t *source) 
     return true;
 }
 
+uint8_t sd_raw_write_data(sd_raw_t *sd, uint32_t block, uint16_t offset, uint16_t size, const uint8_t *source) {
+    uint8_t temporary[SD_RAW_BLOCK_SIZE];
+
+    if (!sd_raw_read_block(sd, block, temporary)) {
+        return false;
+    }
+
+    memcpy(temporary + offset, source, size);
+
+    if (!sd_raw_write_block(sd, block, temporary)) {
+        return false;
+    }
+
+    return true;
+}
+
 uint32_t sd_raw_card_size(sd_raw_t *sd) {
     csd_t csd;
 
@@ -351,6 +369,22 @@ static uint8_t sd_raw_erase_single_block_enabled(sd_raw_t *sd) {
 }
 
 uint8_t sd_raw_erase(sd_raw_t *sd, uint32_t firstBlock, uint32_t lastBlock) {
+    #ifdef SD_RAW_WRITE_BLOCK_ERASE
+    uint8_t temporary[SD_RAW_BLOCK_SIZE];
+    memset(temporary, 0xff, sizeof(temporary));
+    if (firstBlock == lastBlock) {
+        if (!sd_raw_write_block(sd, firstBlock, temporary)) {
+            return false;
+        }
+    }
+    else {
+        for (auto i = firstBlock; i < lastBlock; ++i) {
+            if (!sd_raw_write_block(sd, i, temporary)) {
+                return false;
+            }
+        }
+    }
+    #else
     if (!sd_raw_erase_single_block_enabled(sd)) {
         return sd_raw_error(sd, SD_CARD_ERROR_ERASE_SINGLE_BLOCK);
     }
@@ -371,5 +405,6 @@ uint8_t sd_raw_erase(sd_raw_t *sd, uint32_t firstBlock, uint32_t lastBlock) {
     }
 
     sd_raw_cs_high(sd);
+    #endif
     return true;
 }

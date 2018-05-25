@@ -14,7 +14,9 @@ typedef struct sd_raw_t {
 
 uint8_t sd_raw_initialize(sd_raw_t *sd, uint8_t pinCs);
 uint8_t sd_raw_read_block(sd_raw_t *sd, uint32_t block, uint8_t *destiny);
+uint8_t sd_raw_read_data(sd_raw_t *sd, uint32_t block, uint16_t offset, uint16_t size, uint8_t *destiny);
 uint8_t sd_raw_write_block(sd_raw_t *sd, uint32_t block, const uint8_t *source);
+uint8_t sd_raw_write_data(sd_raw_t *sd, uint32_t block, uint16_t offset, uint16_t size, const uint8_t *source);
 uint32_t sd_raw_card_size(sd_raw_t *sd);
 uint8_t sd_raw_erase(sd_raw_t *sd, uint32_t firstBlock, uint32_t lastBlock);
 

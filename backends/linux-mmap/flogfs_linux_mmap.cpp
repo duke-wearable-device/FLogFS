@@ -3,13 +3,14 @@
 #include <sys/mman.h>
 #include <cstring>
 #include <cassert>
+#include <cstdio>
 
 #include <flogfs.h>
 #include <flogfs_private.h>
 
 #include "flogfs_linux_mmap.h"
 
-#define fslog_trace(f, ...)
+#define fslog_trace(f, ...) // printf("flogfs: " f, ##__VA_ARGS__)
 
 #define fslog_debug(f, ...) // printf("flogfs: " f, ##__VA_ARGS__)
 

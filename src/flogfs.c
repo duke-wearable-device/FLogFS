@@ -793,6 +793,7 @@ flog_result_t flogfs_open_read(flog_read_file_t *file, char const *filename) {
         goto failure;
     }
 
+    file->read_head = 0;
     file->first_block = find_result.first_block;
     file->block = file->first_block;
     file->id = find_result.file_id;
@@ -1215,6 +1216,10 @@ flog_result_t flogfs_read_seek(flog_read_file_t *file, uint32_t position) {
     file->sector_remaining_bytes = seek.bytes_remaining;
 
     return FLOG_SUCCESS;
+}
+
+uint32_t flogfs_read_tell(flog_read_file_t *file) {
+  return file->read_head;
 }
 
 flog_result_t flogfs_open_write(flog_write_file_t *file, char const *filename) {

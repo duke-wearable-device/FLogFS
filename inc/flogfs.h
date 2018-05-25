@@ -209,6 +209,8 @@ uint32_t flogfs_write_file_size(flog_write_file_t *file);
 
 flog_result_t flogfs_read_seek(flog_read_file_t *file, uint32_t position);
 
+uint32_t flogfs_read_tell(flog_read_file_t *file);
+
 /*!
  @brief Close a file which has been opened for reading
  @param file The currently-open read file

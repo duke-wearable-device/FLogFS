@@ -29,8 +29,8 @@ static uint32_t mapped_size{ 0 };
 static uint16_t open_block{ 0 };
 static uint16_t open_page{ 0 };
 
-flog_result_t flogfs_linux_open(const char *path, uint32_t number_of_blocks) {
-    fd = open(path, O_RDWR | O_CREAT | O_TRUNC, 0644);
+flog_result_t flogfs_linux_open(const char *path, bool truncate, uint32_t number_of_blocks) {
+    fd = open(path, O_RDWR | O_CREAT | (truncate ? O_TRUNC : 0), 0644);
     if (fd < 0) {
         return FLOG_FAILURE;
     }

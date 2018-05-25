@@ -35,8 +35,8 @@ void flash_write_sector(uint8_t const *src, uint8_t sector, uint16_t offset, uin
 
 void flash_write_spare(uint8_t const *src, uint8_t sector);
 
-void flash_debug_warn(char const *msg);
+void flash_debug_warn(char const *f, ...);
 
-void flash_debug_error(char const *msg);
+void flash_debug_error(char const *f, ...);
 
 #endif

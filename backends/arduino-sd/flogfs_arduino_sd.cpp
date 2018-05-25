@@ -1,5 +1,7 @@
 #include <cstring>
 #include <cassert>
+#include <cstdarg>
+#include <cstdio>
 
 #include <flogfs.h>
 #include <flogfs_private.h>
@@ -14,9 +16,9 @@ static uint16_t open_page{ 0 };
 
 extern "C" void debugfln(const char *f, ...);
 
-#define fslog_trace(f, ...) debugfln("flogfs: " f, ##__VA_ARGS__)
+#define fslog_trace(f, ...) debugfln(f, ##__VA_ARGS__)
 
-#define fslog_debug(f, ...) debugfln("flogfs: " f, ##__VA_ARGS__)
+#define fslog_debug(f, ...) debugfln(f, ##__VA_ARGS__)
 
 static inline uint32_t get_sd_block(uint16_t block, uint16_t page, uint8_t sector) {
     return (block * FS_SECTORS_PER_BLOCK_INTERNAL * FS_SECTOR_SIZE) +
@@ -110,10 +112,34 @@ void flash_write_spare(uint8_t const *src, uint8_t sector) {
     sd_raw_write_data(&sd, sd_block, sector * 0x10, sizeof(flog_file_sector_spare_t), src);
 }
 
-void flash_debug_warn(char const *msg) {
-    fslog_debug("debug: %s", msg);
+constexpr uint16_t DebugLineMax = 256;
+
+void flash_debug_warn(char const *f, ...) {
+    char buffer[DebugLineMax];
+    va_list args;
+
+    va_start(args, f);
+    auto w = vsnprintf(buffer, DebugLineMax, f, args);
+    va_end(args);
+
+    buffer[w] = '\r';
+    buffer[w + 1] = '\n';
+    buffer[w + 2] = 0;
+
+    fslog_debug(buffer);
 }
 
-void flash_debug_error(char const *msg) {
-    fslog_debug("error: %s", msg);
+void flash_debug_error(char const *f, ...) {
+    char buffer[DebugLineMax];
+    va_list args;
+
+    va_start(args, f);
+    auto w = vsnprintf(buffer, DebugLineMax, f, args);
+    va_end(args);
+
+    buffer[w] = '\r';
+    buffer[w + 1] = '\n';
+    buffer[w + 2] = 0;
+
+    fslog_debug(buffer);
 }

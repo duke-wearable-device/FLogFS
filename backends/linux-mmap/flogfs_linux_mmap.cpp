@@ -3,6 +3,7 @@
 #include <sys/mman.h>
 #include <cstring>
 #include <cassert>
+#include <cstdarg>
 #include <cstdio>
 
 #include <flogfs.h>
@@ -10,9 +11,9 @@
 
 #include "flogfs_linux_mmap.h"
 
-#define fslog_trace(f, ...) // printf("flogfs: " f, ##__VA_ARGS__)
+#define fslog_trace(f, ...) flash_debug_warn(f, ##__VA_ARGS__)
 
-#define fslog_debug(f, ...) // printf("flogfs: " f, ##__VA_ARGS__)
+#define fslog_debug(f, ...) flash_debug_warn(f, ##__VA_ARGS__)
 
 #ifdef FLOG_ERASE_ZERO
 constexpr uint8_t FS_ERASE_CHAR = 0x00;
@@ -102,18 +103,18 @@ void flash_unlock() {
 }
 
 flog_result_t flash_open_page(uint16_t block, uint16_t page) {
-    fslog_debug("flash_open_page(%d, %d)\n", block, page);
+    fslog_debug("flash_open_page(%d, %d)", block, page);
     open_block = block;
     open_page = page;
     return FLOG_RESULT(FLOG_SUCCESS);
 }
 
 void flash_close_page() {
-    fslog_debug("flash_close_page\n");
+    fslog_debug("flash_close_page");
 }
 
 flog_result_t flash_erase_block(uint16_t block) {
-    fslog_debug("flash_erase_block(%d)\n", block);
+    fslog_debug("flash_erase_block(%d)", block);
     memset(mapped_sector_absolute_ptr(block, 0, 0, 0), FS_ERASE_CHAR, FS_SECTORS_PER_BLOCK_INTERNAL * FS_SECTOR_SIZE);
     return FLOG_RESULT(FLOG_SUCCESS);
 }
@@ -129,6 +130,7 @@ void flash_commit() {
 }
 
 static void verified_memcpy(void *dst, const void *src, size_t size) {
+    fslog_debug("flash_write_verified(%d, %d)", (uint8_t *)dst - (uint8_t *)mapped, size);
     for (auto i = 0; i < size; ++i) {
         assert(((uint8_t *)dst)[i] == FS_ERASE_CHAR);
     }
@@ -136,7 +138,7 @@ static void verified_memcpy(void *dst, const void *src, size_t size) {
 }
 
 flog_result_t flash_read_sector(uint8_t *dst, uint8_t sector, uint16_t offset, uint16_t n) {
-    fslog_debug("flash_read_sector(%p, %d, %d, %d)\n", dst, sector, offset, n);
+    fslog_debug("flash_read_sector(%p, %d, %d, %d)", dst, sector, offset, n);
     sector = sector % FS_SECTORS_PER_PAGE;
     auto src = mapped_sector_ptr(sector, offset);
     memcpy(dst, src, n);
@@ -144,7 +146,7 @@ flog_result_t flash_read_sector(uint8_t *dst, uint8_t sector, uint16_t offset, u
 }
 
 flog_result_t flash_read_spare(uint8_t *dst, uint8_t sector) {
-    fslog_debug("flash_read_spare(%p, %d)\n", dst, sector);
+    fslog_debug("flash_read_spare(%p, %d)", dst, sector);
     sector = sector % FS_SECTORS_PER_PAGE;
     auto src = mapped_sector_ptr(0, 0x804 + sector * 0x10);
     memcpy(dst, src, sizeof(flog_file_sector_spare_t));
@@ -152,23 +154,47 @@ flog_result_t flash_read_spare(uint8_t *dst, uint8_t sector) {
 }
 
 void flash_write_sector(uint8_t const *src, uint8_t sector, uint16_t offset, uint16_t n) {
-    fslog_debug("flash_write_sector(%p, %d, %d, %d)\n", src, sector, offset, n);
+    fslog_debug("flash_write_sector(%p, %d, %d, %d)", src, sector, offset, n);
     sector = sector % FS_SECTORS_PER_PAGE;
     auto dst = mapped_sector_ptr(sector, offset);
     verified_memcpy(dst, src, n);
 }
 
 void flash_write_spare(uint8_t const *src, uint8_t sector) {
-    fslog_debug("flash_write_spare(%p, %d)\n", src, sector);
+    fslog_debug("flash_write_spare(%p, %d)", src, sector);
     sector = sector % FS_SECTORS_PER_PAGE;
     auto dst = mapped_sector_ptr(0, 0x804 + sector * 0x10);
     verified_memcpy(dst, src, sizeof(flog_file_sector_spare_t));
 }
 
-void flash_debug_warn(char const *msg) {
-    fslog_debug("debug: %s\n", msg);
+constexpr uint16_t DebugLineMax = 256;
+
+void flash_debug_warn(char const *f, ...) {
+    char buffer[DebugLineMax];
+    va_list args;
+
+    va_start(args, f);
+    auto w = vsnprintf(buffer, DebugLineMax, f, args);
+    va_end(args);
+
+    buffer[w] = '\r';
+    buffer[w + 1] = '\n';
+    buffer[w + 2] = 0;
+
+    printf("%s", buffer);
 }
 
-void flash_debug_error(char const *msg) {
-    fslog_debug("error: %s\n", msg);
+void flash_debug_error(char const *f, ...) {
+    char buffer[DebugLineMax];
+    va_list args;
+
+    va_start(args, f);
+    auto w = vsnprintf(buffer, DebugLineMax, f, args);
+    va_end(args);
+
+    buffer[w] = '\r';
+    buffer[w + 1] = '\n';
+    buffer[w + 2] = 0;
+
+    printf("%s", buffer);
 }

@@ -16,14 +16,20 @@ void flog_check(flog_result_t fr) {
 }
 
 constexpr const char *Pattern = "abcdefgh";
+#ifdef FLOG_ERASE_ZERO
+constexpr const char *Path = "flash-00.bin";
+#else
+constexpr const char *Path = "flash-ff.bin";
+#endif
 
 size_t write_file(const char *path) {
     if (!flogfs_check_exists(path)) {
         size_t size = 0;
         flog_write_file_t file;
-        std::cout << "Writing " << path << std::endl;
+        std::cout << "Creating " << path << std::endl;
         flog_check(flogfs_open_write(&file, path));
-        for (auto i = 0; i < 1024 * 26; ++i) {
+        std::cout << "Writing " << path << std::endl;
+        for (auto i = 0; i < 256; ++i) {
             size += flogfs_write(&file, (uint8_t *)Pattern, strlen(Pattern));
         }
         if (size != file.file_size) {
@@ -96,8 +102,21 @@ void seek_file(const char *path, size_t expected_size) {
     flog_check(flogfs_close_read(&file));
 }
 
+void ls_files() {
+    flogfs_ls_iterator_t iter;
+    char fname[256];
+
+    flogfs_start_ls(&iter);
+
+    while (flogfs_ls_iterate(&iter, fname)) {
+        std::cout << "LS: '" << fname << "'" << std::endl;
+    }
+
+    flogfs_stop_ls(&iter);
+}
+
 int32_t main(int argc, char *argv[]) {
-    flog_check(flogfs_linux_open("flash.bin"));
+    flog_check(flogfs_linux_open(Path));
 
     flog_check(flogfs_init());
 
@@ -123,18 +142,7 @@ int32_t main(int argc, char *argv[]) {
 
     seek_file("data-1.bin", size1);
 
-    {
-        flogfs_ls_iterator_t iter;
-        char fname[256];
-
-        flogfs_start_ls(&iter);
-
-        while (flogfs_ls_iterate(&iter, fname)) {
-            std::cout << "LS: '" << fname << "'" << std::endl;
-        }
-
-        flogfs_stop_ls(&iter);
-    }
+    ls_files();
 
     flog_check(flogfs_linux_close());
 

@@ -146,6 +146,16 @@ int32_t main(int argc, char *argv[]) {
 
     seek_file("data-1.bin", size1);
 
+    std::cout << "Deleting" << std::endl;
+
+    flog_check(flogfs_rm("data-1.bin"));
+
+    ls_files();
+
+    size1 = write_file("data-1.bin");
+
+    read_file("data-1.bin", size1);
+
     ls_files();
 
     flog_check(flogfs_linux_close());

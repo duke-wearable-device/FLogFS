@@ -7,7 +7,7 @@ extern "C" {
 
 #include "flogfs_conf_implement.h"
 
-flog_result_t flogfs_linux_open(const char *path);
+flog_result_t flogfs_linux_open(const char *path, uint32_t number_of_blocks);
 
 flog_result_t flogfs_linux_close();
 

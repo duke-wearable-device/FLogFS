@@ -116,9 +116,13 @@ void ls_files() {
 }
 
 int32_t main(int argc, char *argv[]) {
-    flog_check(flogfs_linux_open(Path));
+    flog_init_params_t params {
+        .number_of_blocks = 10,
+    };
 
-    flog_check(flogfs_init());
+    flog_check(flogfs_linux_open(Path, params.number_of_blocks));
+
+    flog_check(flogfs_init(&params));
 
     std::cout << "Formatting" << std::endl;
 

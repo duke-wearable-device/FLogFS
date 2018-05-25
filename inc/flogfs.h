@@ -166,10 +166,14 @@ typedef struct flog_write_file_t {
     struct flog_write_file_t *next;
 } flog_write_file_t;
 
+typedef struct flog_init_params_t {
+    uint32_t number_of_blocks;
+} flog_init_params_t;
+
 /*!
  @brief Initialize flogfs filesystem structures
  */
-flog_result_t flogfs_init();
+flog_result_t flogfs_init(flog_init_params_t *params);
 
 /*!
  @brief Format the flash memory for FLogFS

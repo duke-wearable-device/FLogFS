@@ -119,7 +119,7 @@ typedef struct {
         flog_result_t page_open_result;
     } cache_status;
 
-    uint8_t free_block_bitmap[FS_NUM_BLOCKS / 8];
+    uint8_t free_block_bitmap[FS_MAXIMUM_BLOCKS / 8];
 
     flog_block_age_t mean_free_age;
     uint32_t free_block_sum;
@@ -140,6 +140,9 @@ typedef struct {
     flog_dirty_block_t dirty_block;
     //! The moving allocator head
     flog_block_idx_t allocate_head;
+
+    //! Initialized parameters.
+    flog_init_params_t params;
 } flogfs_t;
 
 //! A single static instance
@@ -331,7 +334,7 @@ static void flog_get_block_stat(flog_block_idx_t block, flog_block_stat_sector_t
 // Public implementations
 ///////////////////////////////////////////////////////////////////////////////
 
-flog_result_t flogfs_init() {
+flog_result_t flogfs_init(flog_init_params_t *params) {
     // Initialize locks
     fs_lock_init(&flogfs.allocate_lock);
     fs_lock_init(&flogfs.lock);
@@ -340,6 +343,9 @@ flog_result_t flogfs_init() {
     flogfs.state = FLOG_STATE_RESET;
     flogfs.cache_status.page_open = 0;
     flogfs.dirty_block.block = FLOG_BLOCK_IDX_INVALID;
+
+    flogfs.params = *params;
+
     return flash_init();
 }
 
@@ -364,7 +370,7 @@ flog_result_t flogfs_format() {
         flogfs.state = FLOG_STATE_RESET;
     }
 
-    for (i = FS_FIRST_BLOCK; i < FS_NUM_BLOCKS; i++) {
+    for (i = FS_FIRST_BLOCK; i < flogfs.params.number_of_blocks; i++) {
         flog_open_page(i, 0);
         if (FLOG_SUCCESS == flash_block_is_bad()) {
             continue;
@@ -497,7 +503,7 @@ flog_result_t flogfs_mount() {
 
     flash_lock();
 
-    for (uint32_t i = 0; i < FS_NUM_BLOCKS / 8; i++) {
+    for (uint32_t i = 0; i < flogfs.params.number_of_blocks / 8; i++) {
         flogfs.free_block_bitmap[i] = 0;
     }
 
@@ -541,7 +547,7 @@ flog_result_t flogfs_mount() {
     // - Oldest block age
     // - Inode table 0
     ////////////////////////////////////////////////////////////
-    for (i = FS_FIRST_BLOCK; i < FS_NUM_BLOCKS; i++) {
+    for (i = FS_FIRST_BLOCK; i < flogfs.params.number_of_blocks; i++) {
         // Everything can be determined from page 0
         if (FLOG_FAILURE == flash_open_page(i, 0)) {
             continue;
@@ -1632,7 +1638,7 @@ flog_block_alloc_t flog_allocate_block_iterate() {
     }
 
     // Move the head
-    flogfs.allocate_head = (flogfs.allocate_head + 1) % FS_NUM_BLOCKS;
+    flogfs.allocate_head = (flogfs.allocate_head + 1) % flogfs.params.number_of_blocks;
 
     return block;
 }
@@ -1996,7 +2002,7 @@ flog_block_alloc_t flog_allocate_block(int32_t threshold) {
     // Preallocate is empty
     // Go search for another
     // TODO: Make this efficient
-    for (flog_block_idx_t i = FS_NUM_BLOCKS; i; i--) {
+    for (flog_block_idx_t i = flogfs.params.number_of_blocks; i; i--) {
         block = flog_prealloc_pop(threshold);
         if (block.block != FLOG_BLOCK_IDX_INVALID) {
             // Got a block! Yahtzee!

@@ -146,7 +146,10 @@ void setup() {
 
     debugfln("Initialize");
 
-    flog_check(flogfs_init());
+    flog_init_params_t params {
+        .number_of_blocks = 10,
+    };
+    flog_check(flogfs_init(&params));
 
     debugfln("Formatting");
 

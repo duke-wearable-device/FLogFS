@@ -78,19 +78,34 @@ typedef enum { FLOG_STATE_RESET, FLOG_STATE_MOUNTED } flog_state_t;
  Those values not present represent an error
  */
 typedef enum {
+    #ifdef FLOG_ERASE_ZERO
+    FLOG_BLOCK_TYPE_ERROR = 0xff,
+    FLOG_BLOCK_TYPE_UNALLOCATED = 0,
+    #else
     FLOG_BLOCK_TYPE_ERROR = 0,
-    FLOG_BLOCK_TYPE_UNALLOCATED = 0xFF,
+    FLOG_BLOCK_TYPE_UNALLOCATED = 0xff,
+    #endif
     FLOG_BLOCK_TYPE_INODE = 1,
     FLOG_BLOCK_TYPE_FILE = 2
 } flog_block_type_t;
 
 //! @name Invalid values
 //! @{
+#ifdef FLOG_ERASE_ZERO
+#define FLOG_BLOCK_IDX_INVALID 0x00
+#define FLOG_BLOCK_AGE_INVALID 0x00
+#define FLOG_FILE_ID_INVALID 0x00
+#define FLOG_TIMESTAMP_INVALID 0x00
+#define FLOG_SECTOR_NBYTES_INVALID 0x00
+#define FS_FIRST_BLOCK 1
+#else
 #define FLOG_BLOCK_IDX_INVALID ((flog_block_idx_t)(-1))
 #define FLOG_BLOCK_AGE_INVALID ((flog_block_age_t)(-1))
 #define FLOG_FILE_ID_INVALID ((flog_file_id_t)(-1))
 #define FLOG_TIMESTAMP_INVALID ((flog_timestamp_t)(-1))
 #define FLOG_SECTOR_NBYTES_INVALID ((flog_sector_nbytes_t)(-1))
+#define FS_FIRST_BLOCK 0
+#endif
 //! @}
 
 //! A marker value to identify a completed inode copy

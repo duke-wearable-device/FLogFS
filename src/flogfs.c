@@ -364,7 +364,7 @@ flog_result_t flogfs_format() {
         flogfs.state = FLOG_STATE_RESET;
     }
 
-    for (i = 0; i < FS_NUM_BLOCKS; i++) {
+    for (i = FS_FIRST_BLOCK; i < FS_NUM_BLOCKS; i++) {
         flog_open_page(i, 0);
         if (FLOG_SUCCESS == flash_block_is_bad()) {
             continue;
@@ -525,6 +525,8 @@ flog_result_t flogfs_mount() {
     new_inode0_idx = FLOG_BLOCK_IDX_INVALID;
     inode0_ts = FLOG_TIMESTAMP_INVALID;
 
+    flogfs.inode0 = FS_FIRST_BLOCK;
+
     max_block_age = 0;
 
     ////////////////////////////////////////////////////////////
@@ -535,7 +537,7 @@ flog_result_t flogfs_mount() {
     // - Oldest block age
     // - Inode table 0
     ////////////////////////////////////////////////////////////
-    for (i = 0; i < FS_NUM_BLOCKS; i++) {
+    for (i = FS_FIRST_BLOCK; i < FS_NUM_BLOCKS; i++) {
         // Everything can be determined from page 0
         if (FLOG_FAILURE == flash_open_page(i, 0)) {
             continue;
@@ -1613,7 +1615,7 @@ flog_block_alloc_t flog_allocate_block_iterate() {
 
     block.block = FLOG_BLOCK_IDX_INVALID;
 
-    if (flogfs.free_block_bitmap[flogfs.allocate_head] & (1 << (flogfs.allocate_head % 8))) {
+    if (flogfs.free_block_bitmap[flogfs.allocate_head / 8] & (1 << (flogfs.allocate_head % 8))) {
         // This block is okay to look at
         flog_get_block_stat(flogfs.allocate_head, &block_stat_sector);
         block.age = block_stat_sector.age;
@@ -1805,6 +1807,7 @@ flog_result_t flog_inode_prepare_new(flog_inode_iterator_t *iter) {
         flog_inode_init_sector_t inode_init_sector;
         flog_inode_init_sector_spare_t inode_init_sector_spare;
     } buffer_union;
+
     if (iter->sector == FS_SECTORS_PER_BLOCK - 2) {
         if (iter->next_block != FLOG_BLOCK_IDX_INVALID) {
             flash_debug_warn("FLogFS:" LINESTR);
@@ -1847,6 +1850,9 @@ flog_result_t flog_inode_prepare_new(flog_inode_iterator_t *iter) {
         flash_commit();
 
         iter->next_block = block_alloc.block;
+    }
+    else {
+        iter->block = FS_FIRST_BLOCK;
     }
     // Otherwise this is a completely okay sector to use
 

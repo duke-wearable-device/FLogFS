@@ -48,13 +48,13 @@ either expressed or implied, of the FLogFS Project.
 #define FS_SECTOR_SIZE (512)
 #define FS_SECTORS_PER_PAGE (4)
 #define FS_PAGES_PER_BLOCK (64)
-#define FS_NUM_BLOCKS (10)
+#define FS_NUM_BLOCKS (16)
 //! @}
 
 #define FS_SECTORS_PER_BLOCK (FS_SECTORS_PER_PAGE * FS_PAGES_PER_BLOCK)
 
 //! The number of blocks to preallocate
-#define FS_PREALLOCATE_SIZE (10)
+#define FS_PREALLOCATE_SIZE (8)
 
 //! @} // FLogConf
 

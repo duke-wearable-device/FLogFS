@@ -92,22 +92,32 @@ typedef enum {
 //! @name Invalid values
 //! @{
 #ifdef FLOG_ERASE_ZERO
-#define FLOG_BLOCK_IDX_INVALID 0x00
-#define FLOG_BLOCK_AGE_INVALID 0x00
-#define FLOG_FILE_ID_INVALID 0x00
-#define FLOG_TIMESTAMP_INVALID 0x00
-#define FLOG_SECTOR_NBYTES_INVALID 0x00
-#define FLOG_SECTOR_TYPE_ID_INVALID 0x00
+#define FLOG_BLOCK_IDX_ERASED 0x00
+#define FLOG_BLOCK_AGE_ERASED 0x00
+#define FLOG_FILE_ID_ERASED 0x00
+#define FLOG_TIMESTAMP_ERASED 0x00
+#define FLOG_SECTOR_NBYTES_ERASED 0x00
+#define FLOG_SECTOR_TYPE_ID_ERASED 0x00
+
 #define FS_FIRST_BLOCK 1
 #else
+#define FLOG_BLOCK_IDX_ERASED ((flog_block_idx_t)(-1))
+#define FLOG_BLOCK_AGE_ERASED ((flog_block_age_t)(-1))
+#define FLOG_FILE_ID_ERASED ((flog_file_id_t)(-1))
+#define FLOG_TIMESTAMP_ERASED ((flog_timestamp_t)(-1))
+#define FLOG_SECTOR_NBYTES_ERASED ((flog_sector_nbytes_t)(-1))
+#define FLOG_SECTOR_TYPE_ID_ERASED ((uint8_t)-1)
+
+#define FS_FIRST_BLOCK 0
+#endif
+
 #define FLOG_BLOCK_IDX_INVALID ((flog_block_idx_t)(-1))
 #define FLOG_BLOCK_AGE_INVALID ((flog_block_age_t)(-1))
 #define FLOG_FILE_ID_INVALID ((flog_file_id_t)(-1))
 #define FLOG_TIMESTAMP_INVALID ((flog_timestamp_t)(-1))
 #define FLOG_SECTOR_NBYTES_INVALID ((flog_sector_nbytes_t)(-1))
 #define FLOG_SECTOR_TYPE_ID_INVALID ((uint8_t)-1)
-#define FS_FIRST_BLOCK 0
-#endif
+
 //! @}
 
 //! A marker value to identify a completed inode copy

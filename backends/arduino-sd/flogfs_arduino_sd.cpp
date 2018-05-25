@@ -14,11 +14,9 @@ static sd_raw_t sd;
 static uint16_t open_block{ 0 };
 static uint16_t open_page{ 0 };
 
-extern "C" void debugfln(const char *f, ...);
+#define fslog_trace(f, ...) flash_debug_warn(f, ##__VA_ARGS__)
 
-#define fslog_trace(f, ...) debugfln(f, ##__VA_ARGS__)
-
-#define fslog_debug(f, ...) debugfln(f, ##__VA_ARGS__)
+#define fslog_debug(f, ...) flash_debug_warn(f, ##__VA_ARGS__)
 
 static inline uint32_t get_sd_block(uint16_t block, uint16_t page, uint8_t sector) {
     return (block * FS_SECTORS_PER_BLOCK_INTERNAL * FS_SECTOR_SIZE) +
@@ -114,7 +112,10 @@ void flash_write_spare(uint8_t const *src, uint8_t sector) {
 
 constexpr uint16_t DebugLineMax = 256;
 
+extern "C" void debugfln(const char *f, ...);
+
 void flash_debug_warn(char const *f, ...) {
+    #ifdef FLOGFS_VERBOSE_LOGGING
     char buffer[DebugLineMax];
     va_list args;
 
@@ -126,10 +127,12 @@ void flash_debug_warn(char const *f, ...) {
     buffer[w + 1] = '\n';
     buffer[w + 2] = 0;
 
-    fslog_debug(buffer);
+    debugfln("%s", buffer);
+    #endif
 }
 
 void flash_debug_error(char const *f, ...) {
+    #ifdef FLOGFS_VERBOSE_LOGGING
     char buffer[DebugLineMax];
     va_list args;
 
@@ -141,5 +144,6 @@ void flash_debug_error(char const *f, ...) {
     buffer[w + 1] = '\n';
     buffer[w + 2] = 0;
 
-    fslog_debug(buffer);
+    debugfln("%s", buffer);
+    #endif
 }

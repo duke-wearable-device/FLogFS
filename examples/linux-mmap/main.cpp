@@ -8,19 +8,19 @@
 #include <flogfs.h>
 #include <flogfs_linux_mmap.h>
 
-void flog_check(flog_result_t fr) {
-    if (fr != FLOG_SUCCESS) {
-        fprintf(stderr, "Failed\n");
-        exit(2);
-    }
-}
-
 constexpr const char *Pattern = "abcdefgh";
 #ifdef FLOG_ERASE_ZERO
 constexpr const char *Path = "flash-00.bin";
 #else
 constexpr const char *Path = "flash-ff.bin";
 #endif
+
+void flog_check(flog_result_t fr) {
+    if (fr != FLOG_SUCCESS) {
+        fprintf(stderr, "Failed\n");
+        exit(2);
+    }
+}
 
 size_t write_file(const char *path) {
     if (!flogfs_check_exists(path)) {

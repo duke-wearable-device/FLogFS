@@ -19,8 +19,8 @@ static uint16_t open_page{ 0 };
 #define fslog_debug(f, ...) flash_debug_warn(f, ##__VA_ARGS__)
 
 static inline uint32_t get_sd_block(uint16_t block, uint16_t page, uint8_t sector) {
-    return (block * FS_SECTORS_PER_BLOCK_INTERNAL * FS_SECTOR_SIZE) +
-           (page * FS_SECTORS_PER_PAGE_INTERNAL * FS_SECTOR_SIZE) +
+    return (block * FS_SECTORS_PER_BLOCK_INTERNAL) +
+           (page * FS_SECTORS_PER_PAGE_INTERNAL) +
            (sector);
 }
 

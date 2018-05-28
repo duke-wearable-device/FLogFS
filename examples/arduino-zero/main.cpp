@@ -142,13 +142,13 @@ void setup() {
 
     SPI.begin();
 
-    flog_check(flogfs_arduino_sd_open(12));
-
     debugfln("Initialize");
 
     flog_init_params_t params {
         .number_of_blocks = 10,
     };
+    flog_check(flogfs_arduino_sd_open(12, &params));
+
     flog_check(flogfs_init(&params));
 
     debugfln("Formatting");

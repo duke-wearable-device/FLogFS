@@ -30,8 +30,15 @@ static inline uint32_t get_sd_block_in_open_page(uint8_t sector) {
     return get_sd_block(open_block, open_page, sector);
 }
 
-flog_result_t flogfs_arduino_sd_open(uint8_t cs) {
-    return FLOG_RESULT(sd_raw_initialize(&sd, cs));
+flog_result_t flogfs_arduino_sd_open(uint8_t cs, flog_init_params_t *params) {
+    if (!sd_raw_initialize(&sd, cs)) {
+        return FLOG_FAILURE;
+    }
+    uint32_t number_of_sd_blocks = sd_raw_card_size(&sd);
+    uint32_t number_of_flog_blocks = number_of_sd_blocks / (FS_SECTORS_PER_PAGE_INTERNAL * FS_PAGES_PER_BLOCK);
+    debugfln("Card: %d %d", number_of_sd_blocks, number_of_flog_blocks);
+    params->number_of_blocks = number_of_flog_blocks;
+    return FLOG_RESULT(FLOG_SUCCESS);
 }
 
 flog_result_t flogfs_arduino_sd_close() {

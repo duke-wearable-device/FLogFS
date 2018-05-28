@@ -72,6 +72,12 @@ either expressed or implied, of the FLogFS Project.
 
 typedef enum { FLOG_STATE_RESET, FLOG_STATE_MOUNTED } flog_state_t;
 
+#ifdef FLOG_ERASE_ZERO
+constexpr uint8_t FS_ERASE_CHAR = 0x00;
+#else
+constexpr uint8_t FS_ERASE_CHAR = 0xff;
+#endif
+
 /*!
  @brief A block type stored in the first byte of the first sector spare
 

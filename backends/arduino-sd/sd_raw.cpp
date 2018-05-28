@@ -1,8 +1,10 @@
+#include <Arduino.h>
+#include <SPI.h>
+
 #include "sd_raw.h"
 #include "sd_raw_internal.h"
 
-#include <Arduino.h>
-#include <SPI.h>
+#include <flogfs_private.h>
 
 uint8_t sd_raw_cs_high(sd_raw_t *sd) {
     digitalWrite(sd->cs, HIGH);
@@ -39,7 +41,7 @@ uint8_t sd_raw_flush(sd_raw_t *sd, uint16_t timeoutMs) {
 
 static uint8_t sd_raw_read_end(sd_raw_t *sd) {
     if (sd->inBlock) {
-        while (sd->offset++ < SD_RAW_BLOCK_SIZE + 2) { // I think this is block size + crc bytes.
+        while (sd->offset++ < SD_RAW_BLOCK_SIZE + 2) { // Block size + CRC bytes.
             sd_raw_spi_read();
         }
 
@@ -325,16 +327,25 @@ uint8_t sd_raw_write_block(sd_raw_t *sd, uint32_t block, const uint8_t *source) 
 }
 
 uint8_t sd_raw_write_data(sd_raw_t *sd, uint32_t block, uint16_t offset, uint16_t size, const uint8_t *source) {
-    uint8_t temporary[SD_RAW_BLOCK_SIZE];
-
-    if (!sd_raw_read_block(sd, block, temporary)) {
-        return false;
+    if (size == SD_RAW_BLOCK_SIZE) {
+        if (!sd_raw_write_block(sd, block, source)) {
+            return false;
+        }
     }
+    else {
+        uint8_t temporary[SD_RAW_BLOCK_SIZE];
 
-    memcpy(temporary + offset, source, size);
+        memset(temporary, FS_ERASE_CHAR, sizeof(temporary));
 
-    if (!sd_raw_write_block(sd, block, temporary)) {
-        return false;
+        if (!sd_raw_read_block(sd, block, temporary)) {
+            return false;
+        }
+
+        memcpy(temporary + offset, source, size);
+
+        if (!sd_raw_write_block(sd, block, temporary)) {
+            return false;
+        }
     }
 
     return true;

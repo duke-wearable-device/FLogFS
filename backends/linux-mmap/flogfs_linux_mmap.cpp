@@ -15,11 +15,6 @@
 
 #define fslog_debug(f, ...) flash_debug_warn(f, ##__VA_ARGS__)
 
-#ifdef FLOG_ERASE_ZERO
-constexpr uint8_t FS_ERASE_CHAR = 0x00;
-#else
-constexpr uint8_t FS_ERASE_CHAR = 0xff;
-#endif
 constexpr uint32_t FS_SECTORS_PER_PAGE_INTERNAL = (FS_SECTORS_PER_PAGE + 1);
 constexpr uint32_t FS_SECTORS_PER_BLOCK_INTERNAL = FS_SECTORS_PER_PAGE_INTERNAL * FS_PAGES_PER_BLOCK;
 

@@ -168,6 +168,7 @@ typedef struct flog_write_file_t {
 
 typedef struct flog_init_params_t {
     uint32_t number_of_blocks;
+    uint16_t pages_per_block;
 } flog_init_params_t;
 
 /*!

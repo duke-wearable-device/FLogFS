@@ -1813,7 +1813,7 @@ void flog_inode_iterator_init(flog_inode_iterator_t *iter, flog_block_idx_t inod
 void flog_inode_iterator_next(flog_inode_iterator_t *iter) {
     iter->sector += 2;
     iter->inode_idx += 1;
-    if (iter->sector >= FS_SECTORS_PER_BLOCK) {
+    if (iter->sector >= flogfs.params.pages_per_block * FS_SECTORS_PER_PAGE) {
         // The next sector is in ANOTHER BLOCK!!!
         if (iter->next_block != FLOG_BLOCK_IDX_INVALID) {
             // The next block actually already exists
@@ -1857,7 +1857,7 @@ void flog_inode_iterator_prev(flog_inode_iterator_t *iter) {
 
         iter->next_block = iter->block;
         iter->block = previous;
-        iter->sector = FS_SECTORS_PER_BLOCK - 2;
+        iter->sector = (flogfs.params.pages_per_block * FS_SECTORS_PER_PAGE) - 2;
     } else {
         iter->sector -= 2;
     }
@@ -1874,7 +1874,7 @@ flog_result_t flog_inode_prepare_new(flog_inode_iterator_t *iter) {
         flog_inode_init_sector_spare_t inode_init_sector_spare;
     } buffer_union;
 
-    if (iter->sector == FS_SECTORS_PER_BLOCK - 2) {
+    if (iter->sector == (flogfs.params.pages_per_block * FS_SECTORS_PER_PAGE) - 2) {
         if (iter->next_block != FLOG_BLOCK_IDX_INVALID) {
             flash_debug_warn("FLogFS:" LINESTR);
         }
@@ -2092,14 +2092,14 @@ flog_block_alloc_t flog_allocate_block(int32_t threshold) {
 }
 
 uint16_t flog_increment_sector(uint16_t sector) {
-    switch (sector) {
-    case FLOG_TAIL_SECTOR - 1:
+    uint16_t last_sector = (flogfs.params.pages_per_block * FS_SECTORS_PER_PAGE) - 1;
+    if (sector == FLOG_TAIL_SECTOR - 1) {
         return FS_SECTORS_PER_PAGE;
-    case FS_SECTORS_PER_BLOCK - 1:
-        return FLOG_TAIL_SECTOR;
-    default:
-        return sector + 1;
     }
+    if (sector == last_sector) {
+        return FLOG_TAIL_SECTOR;
+    }
+    return sector + 1;
 }
 
 flog_file_find_result_t flog_find_file(char const *filename, flog_inode_iterator_t *iter) {

@@ -146,6 +146,7 @@ void setup() {
 
     flog_init_params_t params {
         .number_of_blocks = 10,
+        .pages_per_block = 64,
     };
     flog_check(flogfs_arduino_sd_open(12, &params));
 

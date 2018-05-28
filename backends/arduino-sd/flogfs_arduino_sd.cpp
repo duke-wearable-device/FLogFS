@@ -16,13 +16,14 @@ static sd_raw_t sd;
 static uint16_t open_block{ 0 };
 static uint16_t open_page{ 0 };
 static uint16_t last_block_erased{ ((uint16_t)-1) };
+static uint16_t pages_per_block{ 0 };
 
 #define fslog_trace(f, ...) flash_debug_warn(f, ##__VA_ARGS__)
 
 #define fslog_debug(f, ...) flash_debug_warn(f, ##__VA_ARGS__)
 
 static inline uint32_t get_sd_block(uint16_t block, uint16_t page, uint8_t sector) {
-    return (block * FS_SECTORS_PER_BLOCK_INTERNAL) +
+    return (block * pages_per_block * FS_SECTORS_PER_PAGE_INTERNAL) +
            (page * FS_SECTORS_PER_PAGE_INTERNAL) +
            (sector);
 }
@@ -32,11 +33,15 @@ static inline uint32_t get_sd_block_in_open_page(uint8_t sector) {
 }
 
 flog_result_t flogfs_arduino_sd_open(uint8_t cs, flog_init_params_t *params) {
+    pages_per_block = params->pages_per_block;
+
     if (!sd_raw_initialize(&sd, cs)) {
         return FLOG_FAILURE;
     }
+
     uint32_t number_of_sd_blocks = sd_raw_card_size(&sd);
-    uint32_t number_of_flog_blocks = number_of_sd_blocks / (FS_SECTORS_PER_PAGE_INTERNAL * FS_PAGES_PER_BLOCK);
+    uint32_t number_of_flog_blocks = number_of_sd_blocks / (FS_SECTORS_PER_PAGE_INTERNAL * pages_per_block);
+
     params->number_of_blocks = number_of_flog_blocks;
     return FLOG_RESULT(FLOG_SUCCESS);
 }

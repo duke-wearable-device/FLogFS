@@ -16,21 +16,27 @@
 #define fslog_debug(f, ...) flash_debug_warn(f, ##__VA_ARGS__)
 
 constexpr uint32_t FS_SECTORS_PER_PAGE_INTERNAL = (FS_SECTORS_PER_PAGE + 1);
-constexpr uint32_t FS_SECTORS_PER_BLOCK_INTERNAL = FS_SECTORS_PER_PAGE_INTERNAL * FS_PAGES_PER_BLOCK;
 
 static void *mapped{ nullptr };
 static int32_t fd{ -1 };
 static uint32_t mapped_size{ 0 };
 static uint16_t open_block{ 0 };
 static uint16_t open_page{ 0 };
+static uint32_t pages_per_block{ 0 };
 
-flog_result_t flogfs_linux_open(const char *path, bool truncate, uint32_t number_of_blocks) {
+static inline uint32_t sectors_per_block() {
+    return FS_SECTORS_PER_PAGE_INTERNAL * pages_per_block;
+}
+
+flog_result_t flogfs_linux_open(const char *path, bool truncate, flog_init_params_t *params) {
     fd = open(path, O_RDWR | O_CREAT | (truncate ? O_TRUNC : 0), 0644);
     if (fd < 0) {
         return FLOG_FAILURE;
     }
 
-    mapped_size = FS_SECTOR_SIZE * FS_SECTORS_PER_BLOCK_INTERNAL * number_of_blocks;
+    pages_per_block = params->pages_per_block;
+
+    mapped_size = FS_SECTOR_SIZE * sectors_per_block() * params->number_of_blocks;
     if (lseek(fd, mapped_size, SEEK_SET) == -1) {
         return FLOG_FAILURE;
     }
@@ -62,7 +68,7 @@ flog_result_t flogfs_linux_close() {
 }
 
 static inline uint32_t get_offset(uint16_t block, uint16_t page, uint8_t sector, uint16_t offset) {
-    return (block * FS_SECTORS_PER_BLOCK_INTERNAL * FS_SECTOR_SIZE) +
+    return (block * sectors_per_block() * FS_SECTOR_SIZE) +
         (page * FS_SECTORS_PER_PAGE_INTERNAL * FS_SECTOR_SIZE) +
         (sector * FS_SECTOR_SIZE) + offset;
 }
@@ -111,7 +117,7 @@ void flash_close_page() {
 
 flog_result_t flash_erase_block(uint16_t block) {
     fslog_debug("flash_erase_block(%d)", block);
-    memset(mapped_sector_absolute_ptr(block, 0, 0, 0), FS_ERASE_CHAR, FS_SECTORS_PER_BLOCK_INTERNAL * FS_SECTOR_SIZE);
+    memset(mapped_sector_absolute_ptr(block, 0, 0, 0), FS_ERASE_CHAR, sectors_per_block() * FS_SECTOR_SIZE);
     return FLOG_RESULT(FLOG_SUCCESS);
 }
 

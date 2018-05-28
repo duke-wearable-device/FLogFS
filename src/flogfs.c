@@ -552,7 +552,9 @@ flog_result_t flogfs_mount() {
     flash_lock();
 
     for (uint32_t i = 0; i < flogfs.params.number_of_blocks / 8; i++) {
-        flogfs.free_block_bitmap[i] = 0;
+        if (i < sizeof(flogfs.free_block_bitmap)) {
+            flogfs.free_block_bitmap[i] = 0;
+        }
     }
 
     ////////////////////////////////////////////////////////////
@@ -565,6 +567,8 @@ flog_result_t flogfs_mount() {
 
     last_deletion.timestamp = 0;
     last_deletion.file_id = FLOG_FILE_ID_INVALID;
+
+    flogfs.allocate_head = 0;
 
     flogfs.num_free_blocks = 0;
     flogfs.t_allocation_ceiling = FLOG_TIMESTAMP_INVALID;
@@ -653,8 +657,10 @@ flog_result_t flogfs_mount() {
         case FLOG_BLOCK_TYPE_UNALLOCATED:
             flog_get_block_stat(i, &sector_buffer_union.stat_sector);
             flogfs.num_free_blocks += 1;
-            flogfs.free_block_bitmap[i / 8] |= (1 << (i % 8));
-            flogfs.free_block_sum += sector_buffer_union.stat_sector.age;
+            if (i < sizeof(flogfs.free_block_bitmap)) {
+              flogfs.free_block_bitmap[i / 8] |= (1 << (i % 8));
+              flogfs.free_block_sum += sector_buffer_union.stat_sector.age;
+            }
             break;
         default:
             flash_debug_error("FLogFS:" LINESTR);
@@ -674,6 +680,7 @@ flog_result_t flogfs_mount() {
         last_allocation.age = universal_tail_sector.next_age;
     }
 
+    assert(flogfs.num_free_blocks > 0);
     flogfs.mean_free_age = flogfs.free_block_sum / flogfs.num_free_blocks;
 
     if (inode0_idx == FLOG_BLOCK_IDX_INVALID) {
@@ -2071,7 +2078,7 @@ flog_block_alloc_t flog_allocate_block(int32_t threshold) {
         if (block.block != FLOG_BLOCK_IDX_INVALID) {
             // Found a block
             if (flog_age_is_sufficient(threshold, block.age)) {
-                flogfs.free_block_bitmap[block.age / 8] &= ~(1 << (block.age % 8));
+                flogfs.free_block_bitmap[block.block / 8] &= ~(1 << (block.block % 8));
                 // BOOOOOO
                 flogfs.num_free_blocks -= 1;
                 assert(flogfs.num_free_blocks != 0);

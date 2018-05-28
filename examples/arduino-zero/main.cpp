@@ -8,14 +8,6 @@
 
 constexpr const char *Pattern = "abcdefgh";
 
-static void flog_check(flog_result_t fr) {
-    if (fr != FLOG_SUCCESS) {
-        Serial.println("Fail!");
-        while (true) {
-        }
-    }
-}
-
 extern "C" void debugfln(const char *f, ...) {
     constexpr uint16_t DebugLineMax = 256;
     char buffer[DebugLineMax];
@@ -32,12 +24,20 @@ extern "C" void debugfln(const char *f, ...) {
     Serial.print(buffer);
 }
 
+void flog_assertion_fail(const char *expression, const char *file, uint32_t line) {
+    debugfln("Failed: %s:%d : %s", file, line, expression);
+    while (true) {
+    }
+}
+
+#define FLOG_CHECK(EX) (void)((EX) || (flog_assertion_fail(#EX, __FILE__, __LINE__), 0))
+
 size_t write_file(const char *path) {
     if (!flogfs_check_exists(path)) {
         size_t size = 0;
         flog_write_file_t file;
         debugfln("Creating %s", path);
-        flog_check(flogfs_open_write(&file, path));
+        FLOG_CHECK(flogfs_open_write(&file, path));
         debugfln("Writing %s", path);
         for (auto i = 0; i < 256; ++i) {
             size += flogfs_write(&file, (uint8_t *)Pattern, strlen(Pattern));
@@ -48,7 +48,7 @@ size_t write_file(const char *path) {
 
         debugfln("Closing size=%d block=%d sector=%d", file.file_size, file.block, file.sector);
 
-        flog_check(flogfs_close_write(&file));
+        FLOG_CHECK(flogfs_close_write(&file));
 
         return size;
     }
@@ -58,12 +58,12 @@ size_t write_file(const char *path) {
 
 void reopen_file(const char *path, size_t expected_size) {
     flog_write_file_t file;
-    flog_check(flogfs_open_write(&file, path));
+    FLOG_CHECK(flogfs_open_write(&file, path));
     debugfln("Opened %s size=%d block=%d sector=%d", path, file.file_size, file.block, file.sector);
     if (expected_size != file.file_size) {
         debugfln("Size is wrong %d != %d", expected_size, file.file_size);
     }
-    flog_check(flogfs_close_write(&file));
+    FLOG_CHECK(flogfs_close_write(&file));
 }
 
 void read_records(flog_read_file_t *file, size_t expected_size) {
@@ -90,29 +90,29 @@ void read_records(flog_read_file_t *file, size_t expected_size) {
 void read_file(const char *path, size_t expected_size) {
     flog_read_file_t file;
     debugfln("Reading %s", path);
-    flog_check(flogfs_open_read(&file, path));
+    FLOG_CHECK(flogfs_open_read(&file, path));
     if (expected_size != file.file_size) {
         debugfln("Size is wrong %d != %d", expected_size, file.file_size);
     }
 
     read_records(&file, expected_size);
 
-    flog_check(flogfs_close_read(&file));
+    FLOG_CHECK(flogfs_close_read(&file));
 }
 
 void seek_file(const char *path, size_t expected_size) {
     flog_read_file_t file;
     debugfln("Opening to test seek %s", path);
 
-    flog_check(flogfs_open_read(&file, path));
+    FLOG_CHECK(flogfs_open_read(&file, path));
 
     size_t expected_bytes_to_be_read = strlen(Pattern) * 2;
 
-    flog_check(flogfs_read_seek(&file, expected_size - expected_bytes_to_be_read));
+    FLOG_CHECK(flogfs_read_seek(&file, expected_size - expected_bytes_to_be_read));
 
     read_records(&file, expected_bytes_to_be_read);
 
-    flog_check(flogfs_close_read(&file));
+    FLOG_CHECK(flogfs_close_read(&file));
 }
 
 void ls_files() {
@@ -148,17 +148,19 @@ void setup() {
         .number_of_blocks = 10,
         .pages_per_block = 64,
     };
-    flog_check(flogfs_arduino_sd_open(12, &params));
+    FLOG_CHECK(flogfs_arduino_sd_open(12, &params));
 
-    flog_check(flogfs_init(&params));
-
-    debugfln("Formatting");
-
-    flog_check(flogfs_format());
+    FLOG_CHECK(flogfs_init(&params));
 
     debugfln("Mounting");
 
-    flog_check(flogfs_mount());
+    if (flogfs_mount() == FLOG_FAILURE) {
+        debugfln("Formatting");
+        FLOG_CHECK(flogfs_format());
+    }
+
+    debugfln("Mounting");
+    FLOG_CHECK(flogfs_mount());
 
     auto size1 = write_file("data-1.bin");
     auto size2 = write_file("data-2.bin");

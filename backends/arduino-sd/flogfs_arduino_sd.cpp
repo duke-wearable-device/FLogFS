@@ -40,9 +40,9 @@ flog_result_t flogfs_arduino_sd_open(uint8_t cs, flog_init_params_t *params) {
     }
 
     uint32_t number_of_sd_blocks = sd_raw_card_size(&sd);
-    uint32_t number_of_flog_blocks = number_of_sd_blocks / (FS_SECTORS_PER_PAGE_INTERNAL * pages_per_block);
+    uint32_t number_of_fs_blocks = number_of_sd_blocks / (FS_SECTORS_PER_PAGE_INTERNAL * pages_per_block);
 
-    params->number_of_blocks = number_of_flog_blocks;
+    params->number_of_blocks = number_of_fs_blocks;
     return FLOG_RESULT(FLOG_SUCCESS);
 }
 

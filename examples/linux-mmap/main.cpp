@@ -120,7 +120,7 @@ void ls_files() {
 
 int32_t main(int argc, char *argv[]) {
     flog_init_params_t params {
-        .number_of_blocks = 100,
+        .number_of_blocks = 16 * 1024,
         .pages_per_block = 64,
     };
 

@@ -170,36 +170,29 @@ void flash_write_spare(uint8_t const *src, uint8_t sector) {
 
 constexpr uint16_t DebugLineMax = 256;
 
-void flash_debug_warn(char const *f, ...) {
-    #ifdef FLOGFS_VERBOSE_LOGGING
+void flash_debug(const char *f, va_list args) {
     char buffer[DebugLineMax];
-    va_list args;
-
-    va_start(args, f);
     auto w = vsnprintf(buffer, DebugLineMax, f, args);
-    va_end(args);
-
     buffer[w] = '\r';
     buffer[w + 1] = '\n';
     buffer[w + 2] = 0;
-
     printf("%s", buffer);
-    #endif
+}
+
+void flash_debug_warn(char const *f, ...) {
+#ifdef FLOGFS_VERBOSE_LOGGING
+    va_list args;
+    va_start(args, f);
+    flash_debug(f, args);
+    va_end(args);
+#endif
 }
 
 void flash_debug_error(char const *f, ...) {
-    #ifdef FLOGFS_VERBOSE_LOGGING
-    char buffer[DebugLineMax];
+#ifdef FLOGFS_VERBOSE_LOGGING
     va_list args;
-
     va_start(args, f);
-    auto w = vsnprintf(buffer, DebugLineMax, f, args);
+    flash_debug(f, args);
     va_end(args);
-
-    buffer[w] = '\r';
-    buffer[w + 1] = '\n';
-    buffer[w + 2] = 0;
-
-    printf("%s", buffer);
-    #endif
+#endif
 }

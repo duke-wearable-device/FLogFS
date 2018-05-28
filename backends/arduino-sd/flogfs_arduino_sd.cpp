@@ -10,6 +10,8 @@
 
 #include "flogfs_arduino_sd.h"
 
+extern "C" void debugfln(const char *f, ...);
+
 static sd_raw_t sd;
 static uint16_t open_block{ 0 };
 static uint16_t open_page{ 0 };
@@ -46,7 +48,6 @@ void fs_unlock(fs_lock_t *lock) {
 }
 
 flog_result_t flash_init() {
-    fslog_debug("Card: %d", sd_raw_card_size(&sd));
     return FLOG_SUCCESS;
 }
 
@@ -112,38 +113,26 @@ void flash_write_spare(uint8_t const *src, uint8_t sector) {
 
 constexpr uint16_t DebugLineMax = 256;
 
-extern "C" void debugfln(const char *f, ...);
+void flash_debug(const char *f, va_list args) {
+    char buffer[DebugLineMax];
+    auto w = vsnprintf(buffer, DebugLineMax, f, args);
+    debugfln("%s", buffer);
+}
 
 void flash_debug_warn(char const *f, ...) {
     #ifdef FLOGFS_VERBOSE_LOGGING
-    char buffer[DebugLineMax];
     va_list args;
-
     va_start(args, f);
-    auto w = vsnprintf(buffer, DebugLineMax, f, args);
+    flash_debug(f, args);
     va_end(args);
-
-    buffer[w] = '\r';
-    buffer[w + 1] = '\n';
-    buffer[w + 2] = 0;
-
-    debugfln("%s", buffer);
     #endif
 }
 
 void flash_debug_error(char const *f, ...) {
     #ifdef FLOGFS_VERBOSE_LOGGING
-    char buffer[DebugLineMax];
     va_list args;
-
     va_start(args, f);
-    auto w = vsnprintf(buffer, DebugLineMax, f, args);
+    flash_debug(f, args);
     va_end(args);
-
-    buffer[w] = '\r';
-    buffer[w + 1] = '\n';
-    buffer[w + 2] = 0;
-
-    debugfln("%s", buffer);
     #endif
 }

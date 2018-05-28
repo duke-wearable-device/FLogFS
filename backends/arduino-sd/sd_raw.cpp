@@ -326,7 +326,7 @@ uint8_t sd_raw_write_block(sd_raw_t *sd, uint32_t block, const uint8_t *source) 
     return true;
 }
 
-uint8_t sd_raw_write_data(sd_raw_t *sd, uint32_t block, uint16_t offset, uint16_t size, const uint8_t *source) {
+uint8_t sd_raw_write_data(sd_raw_t *sd, uint32_t block, uint16_t offset, uint16_t size, const uint8_t *source, uint8_t preserve_partial_write) {
     if (size == SD_RAW_BLOCK_SIZE) {
         if (!sd_raw_write_block(sd, block, source)) {
             return false;
@@ -335,10 +335,13 @@ uint8_t sd_raw_write_data(sd_raw_t *sd, uint32_t block, uint16_t offset, uint16_
     else {
         uint8_t temporary[SD_RAW_BLOCK_SIZE];
 
-        memset(temporary, FS_ERASE_CHAR, sizeof(temporary));
-
-        if (!sd_raw_read_block(sd, block, temporary)) {
-            return false;
+        if (preserve_partial_write) {
+            if (!sd_raw_read_block(sd, block, temporary)) {
+                return false;
+            }
+        }
+        else {
+            memset(temporary, FS_ERASE_CHAR, sizeof(temporary));
         }
 
         memcpy(temporary + offset, source, size);

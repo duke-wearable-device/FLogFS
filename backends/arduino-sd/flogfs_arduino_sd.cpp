@@ -15,6 +15,7 @@ extern "C" void debugfln(const char *f, ...);
 static sd_raw_t sd;
 static uint16_t open_block{ 0 };
 static uint16_t open_page{ 0 };
+static uint16_t last_block_erased{ ((uint16_t)-1) };
 
 #define fslog_trace(f, ...) flash_debug_warn(f, ##__VA_ARGS__)
 
@@ -36,7 +37,6 @@ flog_result_t flogfs_arduino_sd_open(uint8_t cs, flog_init_params_t *params) {
     }
     uint32_t number_of_sd_blocks = sd_raw_card_size(&sd);
     uint32_t number_of_flog_blocks = number_of_sd_blocks / (FS_SECTORS_PER_PAGE_INTERNAL * FS_PAGES_PER_BLOCK);
-    debugfln("Card: %d %d", number_of_sd_blocks, number_of_flog_blocks);
     params->number_of_blocks = number_of_flog_blocks;
     return FLOG_RESULT(FLOG_SUCCESS);
 }
@@ -68,6 +68,9 @@ flog_result_t flash_open_page(uint16_t block, uint16_t page) {
     fslog_debug("flash_open_page(%d, %d)", block, page);
     open_block = block;
     open_page = page;
+    if (last_block_erased != block) {
+        last_block_erased = ((uint16_t)-1);
+    }
     return FLOG_SUCCESS;
 }
 
@@ -79,6 +82,7 @@ flog_result_t flash_erase_block(uint16_t block) {
     auto first_sd_block = get_sd_block(block, 0, 0);
     auto last_sd_block = get_sd_block(block + 1, 0, 0);
     fslog_debug("flash_erase_block(%d, %d -> %d)", block, first_sd_block, last_sd_block);
+    last_block_erased = block;
     return FLOG_RESULT(sd_raw_erase(&sd, first_sd_block, last_sd_block));
 }
 
@@ -106,16 +110,17 @@ flog_result_t flash_read_spare(uint8_t *dst, uint8_t sector) {
 }
 
 void flash_write_sector(uint8_t const *src, uint8_t sector, uint16_t offset, uint16_t n) {
-    fslog_debug("flash_write_sector(%p, %d, %d, %d)", src, sector, offset, n);
+    bool preserve_partial_write = last_block_erased != open_block;
+    fslog_debug("flash_write_sector(%p, %d, %d, %d, %s)", src, sector, offset, n, preserve_partial_write ? "PRESERVE" : "IGNORE-EXISTING");
     sector = sector % FS_SECTORS_PER_PAGE;
-    sd_raw_write_data(&sd, get_sd_block_in_open_page(sector), offset, n, src);
+    sd_raw_write_data(&sd, get_sd_block_in_open_page(sector), offset, n, src, preserve_partial_write);
 }
 
 void flash_write_spare(uint8_t const *src, uint8_t sector) {
     fslog_debug("flash_write_spare(%p, %d)", src, sector);
     sector = sector % FS_SECTORS_PER_PAGE;
     auto sd_block = get_sd_block_in_open_page(FS_SECTORS_PER_PAGE);
-    sd_raw_write_data(&sd, sd_block, sector * 0x10, sizeof(flog_file_sector_spare_t), src);
+    sd_raw_write_data(&sd, sd_block, sector * 0x10, sizeof(flog_file_sector_spare_t), src, true);
 }
 
 constexpr uint16_t DebugLineMax = 256;

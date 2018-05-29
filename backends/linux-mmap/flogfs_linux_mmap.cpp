@@ -132,7 +132,7 @@ void flash_commit() {
 }
 
 static void verified_memcpy(void *dst, const void *src, size_t size) {
-    for (auto i = 0; i < size; ++i) {
+    for (size_t i = 0; i < size; ++i) {
         if (((uint8_t *)dst)[i] != FS_ERASE_CHAR) {
             printf("Write to un-erased memory: offset=%lu size=%lu (%d / %d)\n", (uint8_t *)dst - (uint8_t *)mapped, size, open_block, open_page);
             assert(false);

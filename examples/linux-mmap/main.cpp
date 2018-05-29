@@ -6,6 +6,9 @@
 
 #include <iostream>
 #include <algorithm>
+#include <array>
+#include <vector>
+#include <string>
 
 #include <flogfs.h>
 #include <flogfs_linux_mmap.h>
@@ -121,19 +124,21 @@ void ls_files() {
 }
 
 void generate_random_files(uint8_t number_of_files, uint8_t number_of_iterations, uint32_t min_size, uint32_t max_size) {
-    flog_write_file_t files[number_of_files];
-    size_t sizes[number_of_files];
-    size_t written[number_of_files];
-    char names[number_of_files][32];
+    std::vector<flog_write_file_t> files(number_of_files);
+    std::vector<size_t> sizes(number_of_files);
+    std::vector<size_t> written(number_of_files);
+    std::vector<std::string> names(number_of_files);
 
     for (auto i = 0; i < number_of_files; ++i) {
-        snprintf(names[i], sizeof(names[i]), "file-%02d.bin", i);
+        char temp[32];
+        snprintf(temp, sizeof(temp), "file-%02d.bin", i);
+        names[i] = temp;
     }
 
     for (auto j = 0; j < number_of_iterations; ++j) {
         if (j > 0) {
             for (auto i = 0; i < number_of_files; ++i) {
-                FLOG_CHECK(flogfs_rm(names[i]));
+                FLOG_CHECK(flogfs_rm(names[i].c_str()));
             }
 
             std::cout << "After deleting" << std::endl;
@@ -145,7 +150,7 @@ void generate_random_files(uint8_t number_of_files, uint8_t number_of_iterations
             written[i] = 0;
 
             std::cout << "Creating " << names[i] << " " << sizes[i] << std::endl;
-            FLOG_CHECK(flogfs_open_write(&files[i], names[i]));
+            FLOG_CHECK(flogfs_open_write(&files[i], names[i].c_str()));
         }
 
         std::cout << "Writing" << std::endl;
@@ -205,7 +210,7 @@ int32_t main(int argc, char *argv[]) {
 
     if (false) {
         FLOG_CHECK(flogfs_test());
-        auto size1 = write_file("data-1.bin");
+        write_file("data-1.bin");
         FLOG_CHECK(flogfs_test());
         FLOG_CHECK(flogfs_rm("data-1.bin"));
         FLOG_CHECK(flogfs_test());

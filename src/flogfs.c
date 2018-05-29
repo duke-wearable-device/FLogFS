@@ -308,8 +308,6 @@ static flog_timestamp_t flog_block_get_init_timestamp(flog_block_idx_t block);
 
 static flog_block_age_t flog_block_get_age(flog_block_idx_t block);
 
-static void flog_get_file_tail_sector(flog_block_idx_t block, flog_file_tail_sector_header_t *header);
-
 static void flog_get_file_init_sector(flog_block_idx_t block, flog_file_init_sector_header_t *header);
 
 static void flog_get_universal_tail_sector(flog_block_idx_t block, flog_universal_tail_sector_t *header);
@@ -561,13 +559,7 @@ flog_result_t flogfs_mount() {
         flog_timestamp_t timestamp;
     } last_deletion;
 
-    struct {
-        flog_block_idx_t block;
-        flog_block_age_t age;
-    } min_age_block;
-
-    flog_block_idx_t inode0_idx, new_inode0_idx;
-    flog_timestamp_t inode0_ts;
+    flog_block_idx_t inode0_idx;
 
     flog_block_age_t max_block_age;
 
@@ -626,12 +618,7 @@ flog_result_t flogfs_mount() {
     flogfs.dirty_block.block = FLOG_BLOCK_IDX_INVALID;
     flogfs.dirty_block.file = nullptr;
 
-    min_age_block.age = FLOG_BLOCK_AGE_INVALID;
-    min_age_block.block = FLOG_BLOCK_IDX_INVALID;
-
     inode0_idx = FLOG_BLOCK_IDX_INVALID;
-    new_inode0_idx = FLOG_BLOCK_IDX_INVALID;
-    inode0_ts = FLOG_TIMESTAMP_INVALID;
 
     flogfs.inode0 = FS_FIRST_BLOCK;
 
@@ -665,11 +652,7 @@ flog_result_t flogfs_mount() {
                     inode0_idx = i;
                 } else if (flog_block_get_init_timestamp(inode0_idx) > flog_block_get_init_timestamp(i)) {
                     // This is the older inode chain
-                    new_inode0_idx = inode0_idx;
                     inode0_idx = i;
-                } else {
-                    // This is the NEW inode chain!
-                    new_inode0_idx = i;
                 }
             } else {
                 // Not the first, but valid!
@@ -1143,6 +1126,10 @@ static flog_read_walk_result_t flogfs_read_walk_sectors(flog_read_file_t *file, 
         case FLOG_WALK_SKIP_BLOCK: {
             return FLOG_WALK_CONTINUE;
         }
+        default: {
+            assert(false);
+            break;
+        }
         }
 
         if (state->sector == FLOG_TAIL_SECTOR) {
@@ -1182,6 +1169,10 @@ static flog_result_t flogfs_read_walk_file(flog_read_file_t *file, file_walk_fn_
             }
             case FLOG_WALK_STOP: {
                 return FLOG_SUCCESS;
+            }
+            default: {
+                assert(false);
+                break;
             }
             }
             break;
@@ -1802,38 +1793,6 @@ static void flog_inode_iterator_next(flog_inode_iterator_t *iter) {
     }
 }
 
-static flog_block_idx_t flog_inode_get_prev_block(flog_block_idx_t block) {
-    if (block == FLOG_BLOCK_IDX_INVALID) {
-        return block;
-    }
-    flog_open_sector(block, FLOG_INIT_SECTOR);
-    flash_read_sector((uint8_t *)&block, FLOG_INIT_SECTOR, sizeof(flog_block_idx_t), sizeof(block));
-    if (invalid_block_index(block)) {
-        return FLOG_BLOCK_IDX_INVALID;
-    }
-    return block;
-}
-
-static void flog_inode_iterator_prev(flog_inode_iterator_t *iter) {
-    flog_block_idx_t previous;
-    if ((iter->sector - 2) < FLOG_INODE_FIRST_ENTRY_SECTOR) {
-        // Need to go to previous block
-        previous = flog_inode_get_prev_block(iter->block);
-        if (previous == FLOG_BLOCK_IDX_INVALID) {
-            // Already at beginning of chain
-            return;
-        }
-
-        iter->next_block = iter->block;
-        iter->block = previous;
-        iter->sector = (flogfs.params.pages_per_block * FS_SECTORS_PER_PAGE) - 2;
-    } else {
-        iter->sector -= 2;
-    }
-
-    iter->inode_idx -= 1;
-}
-
 static flog_result_t flog_inode_prepare_new(flog_inode_iterator_t *iter) {
     flog_block_alloc_t block_alloc;
 
@@ -2143,7 +2102,7 @@ static void flog_get_universal_tail_sector(flog_block_idx_t block, flog_universa
 #ifndef IS_DOXYGEN
 #if !FLOG_BUILD_CPP
 #ifdef __cplusplus
-};
+}
 #endif
 #endif
 #endif

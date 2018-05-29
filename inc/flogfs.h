@@ -285,7 +285,7 @@ void flogfs_stop_ls(flogfs_ls_iterator_t *iter);
 
 #if !FLOG_BUILD_CPP
 #ifdef __cplusplus
-};
+}
 #endif
 #endif
 

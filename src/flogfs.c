@@ -691,7 +691,6 @@ flog_result_t flogfs_mount() {
 
             flog_get_universal_tail_sector(i, &universal_tail_sector);
             if (!invalid_universal_tail_sector(&universal_tail_sector) && (universal_tail_sector.timestamp > last_allocation.timestamp)) {
-                // This is now the most recent allocation timestamp!
                 last_allocation.previous_inode = i;
                 last_allocation.block_type = FLOG_BLOCK_TYPE_INODE;
                 goto update_last_allocation;
@@ -701,7 +700,6 @@ flog_result_t flogfs_mount() {
             flog_get_universal_tail_sector(i, &universal_tail_sector);
             flog_get_file_init_sector(i, &init_buffer_union.file_init_sector_header);
             if (!invalid_universal_tail_sector(&universal_tail_sector) && (universal_tail_sector.timestamp > last_allocation.timestamp)) {
-                // This is now the most recent allocation timestamp!
                 last_allocation.file_id = init_buffer_union.file_init_sector_header.file_id;
                 last_allocation.block_type = FLOG_BLOCK_TYPE_FILE;
                 goto update_last_allocation;
@@ -1928,7 +1926,6 @@ flog_result_t flog_inode_prepare_new(flog_inode_iterator_t *iter) {
 
         flog_unlock_allocate();
 
-        // Go write the tail sector
         flog_open_sector(iter->block, FLOG_TAIL_SECTOR);
         buffer_union.inode_tail_sector.next_age = block_alloc.age + 1;
         buffer_union.inode_tail_sector.next_block = block_alloc.block;
@@ -1936,13 +1933,13 @@ flog_result_t flog_inode_prepare_new(flog_inode_iterator_t *iter) {
         flash_write_sector(&buffer_union.sector_buffer, FLOG_TAIL_SECTOR, 0, sizeof(flog_universal_tail_sector_t));
         flash_commit();
 
-        // And prepare the header
         flog_open_sector(block_alloc.block, FLOG_INIT_SECTOR);
         buffer_union.inode_init_sector.timestamp = flogfs.t;
         flash_write_sector(&buffer_union.sector_buffer, FLOG_INIT_SECTOR, 0, sizeof(flog_inode_init_sector_t));
         buffer_union.inode_init_sector_spare.type_id = FLOG_BLOCK_TYPE_INODE;
+        buffer_union.inode_init_sector_spare.nothing = 0;
         buffer_union.inode_init_sector_spare.inode_index = ++iter->inode_block_idx;
-        flash_write_spare(&buffer_union.sector_buffer, 0);
+        flash_write_spare(&buffer_union.sector_buffer, FLOG_INIT_SECTOR);
         flash_commit();
 
         iter->next_block = block_alloc.block;
@@ -2092,6 +2089,7 @@ flog_block_alloc_t flog_allocate_block(int32_t threshold) {
     for (flog_block_idx_t i = flogfs.params.number_of_blocks; i; i--) {
         block = flog_prealloc_pop(threshold);
         if (block.block != FLOG_BLOCK_IDX_INVALID) {
+            free_blocks_consumed(block.block);
             flogfs.num_free_blocks -= 1;
             flogfs.free_block_sum -= block.age;
             flogfs.mean_free_age = flogfs.free_block_sum / flogfs.num_free_blocks;

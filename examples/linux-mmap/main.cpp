@@ -191,19 +191,17 @@ int32_t main(int argc, char *argv[]) {
         .pages_per_block = 64,
     };
 
-    FLOG_CHECK(flogfs_linux_open(Path, false, &params));
+    FLOG_CHECK(flogfs_linux_open(Path, true, &params));
 
     FLOG_CHECK(flogfs_init(&params));
 
     std::cout << "Mounting" << std::endl;
-
     if (flogfs_mount() == FLOG_FAILURE) {
         std::cout << "Formatting" << std::endl;
         FLOG_CHECK(flogfs_format());
+        std::cout << "Mounting" << std::endl;
+        FLOG_CHECK(flogfs_mount());
     }
-
-    std::cout << "Mounting" << std::endl;
-    FLOG_CHECK(flogfs_mount());
 
     if (false) {
         FLOG_CHECK(flogfs_test());
@@ -213,8 +211,15 @@ int32_t main(int argc, char *argv[]) {
         FLOG_CHECK(flogfs_test());
     }
     else if (true) {
-        generate_random_files(10, 10, 16384, 16384 * 64);
-        generate_random_files(10, 10, 16384, 16384 * 64);
+        for (auto i = 0; i < 10; ++i) {
+            std::cout << "Mounting" << std::endl;
+            if (i % 5 == 0) {
+                FLOG_CHECK(flogfs_init(&params));
+                FLOG_CHECK(flogfs_mount());
+                // srand(1);
+            }
+            generate_random_files(10, 10, 16384, 16384 * 64);
+        }
     }
     else {
         auto size1 = write_file("data-1.bin");

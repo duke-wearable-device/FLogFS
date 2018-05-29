@@ -185,6 +185,7 @@ flog_result_t flogfs_format();
  @brief Mount the FLogFS filesystem and prepare it for use
  */
 flog_result_t flogfs_mount();
+flog_result_t flogfs_test();
 
 /*!
  @brief Open a file to read

@@ -2,8 +2,10 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <cassert>
 
 #include <iostream>
+#include <algorithm>
 
 #include <flogfs.h>
 #include <flogfs_linux_mmap.h>
@@ -118,9 +120,70 @@ void ls_files() {
     flogfs_stop_ls(&iter);
 }
 
+void generate_random_files(uint8_t number_of_files, uint8_t number_of_iterations, uint32_t min_size, uint32_t max_size) {
+    flog_write_file_t files[number_of_files];
+    size_t sizes[number_of_files];
+    size_t written[number_of_files];
+    char names[number_of_files][32];
+
+    for (auto i = 0; i < number_of_files; ++i) {
+        snprintf(names[i], sizeof(names[i]), "file-%02d.bin", i);
+    }
+
+    for (auto j = 0; j < number_of_iterations; ++j) {
+        if (j > 0) {
+            for (auto i = 0; i < number_of_files; ++i) {
+                FLOG_CHECK(flogfs_rm(names[i]));
+            }
+            FLOG_CHECK(flogfs_test());
+        }
+
+        for (auto i = 0; i < number_of_files; ++i) {
+            sizes[i] = (random() % (max_size - min_size)) + min_size;
+            written[i] = 0;
+
+            std::cout << "Creating " << names[i] << " " << sizes[i] << std::endl;
+            FLOG_CHECK(flogfs_open_write(&files[i], names[i]));
+        }
+
+        while (true) {
+            auto done = true;
+
+            for (auto i = 0; i < number_of_files; ++i) {
+                auto remaining = sizes[i] - written[i];
+                if (remaining > 0) {
+                    auto to_write = std::min((uint32_t)(random() % 4096) + 256, (uint32_t)remaining);
+                    while (to_write > 0) {
+                        auto writing = std::min((uint32_t)to_write, (uint32_t)strlen(Pattern));
+                        auto wrote = flogfs_write(&files[i], (uint8_t *)Pattern, writing);
+                        if (wrote != writing) {
+                            std::cout << "Writing " << names[i] << " " << remaining << " " << files[i].block << " " << writing << std::endl;
+                            assert(wrote == writing);
+                        }
+                        to_write -= wrote;
+                        written[i] += wrote;
+                        done = false;
+                    }
+                }
+            }
+
+            if (done) {
+                break;
+            }
+        }
+
+        for (auto i = 0; i < number_of_files; ++i) {
+            std::cout << "Closing " << names[i] << " " << flogfs_write_file_size(&files[i]) << " " << files[i].block << std::endl;
+            FLOG_CHECK(flogfs_close_write(&files[i]));
+        }
+
+        FLOG_CHECK(flogfs_test());
+    }
+}
+
 int32_t main(int argc, char *argv[]) {
     flog_init_params_t params {
-        .number_of_blocks = 16 * 1024,
+        .number_of_blocks = 256,
         .pages_per_block = 64,
     };
 
@@ -138,31 +201,43 @@ int32_t main(int argc, char *argv[]) {
     std::cout << "Mounting" << std::endl;
     FLOG_CHECK(flogfs_mount());
 
-    auto size1 = write_file("data-1.bin");
-    auto size2 = write_file("data-2.bin");
-    auto size3 = write_file("data-3.bin");
+    if (false) {
+        FLOG_CHECK(flogfs_test());
+        auto size1 = write_file("data-1.bin");
+        FLOG_CHECK(flogfs_test());
+        FLOG_CHECK(flogfs_rm("data-1.bin"));
+        FLOG_CHECK(flogfs_test());
+    }
+    else if (true) {
+        generate_random_files(10, 10, 16384, 16384 * 64);
+    }
+    else {
+        auto size1 = write_file("data-1.bin");
+        auto size2 = write_file("data-2.bin");
+        auto size3 = write_file("data-3.bin");
 
-    read_file("data-1.bin", size1);
-    read_file("data-2.bin", size2);
-    read_file("data-3.bin", size3);
+        read_file("data-1.bin", size1);
+        read_file("data-2.bin", size2);
+        read_file("data-3.bin", size3);
 
-    reopen_file("data-1.bin", size1);
-    reopen_file("data-2.bin", size2);
-    reopen_file("data-3.bin", size3);
+        reopen_file("data-1.bin", size1);
+        reopen_file("data-2.bin", size2);
+        reopen_file("data-3.bin", size3);
 
-    seek_file("data-1.bin", size1);
+        seek_file("data-1.bin", size1);
 
-    std::cout << "Deleting" << std::endl;
+        std::cout << "Deleting" << std::endl;
 
-    FLOG_CHECK(flogfs_rm("data-1.bin"));
+        FLOG_CHECK(flogfs_rm("data-1.bin"));
 
-    ls_files();
+        ls_files();
 
-    size1 = write_file("data-1.bin");
+        size1 = write_file("data-1.bin");
 
-    read_file("data-1.bin", size1);
+        read_file("data-1.bin", size1);
 
-    ls_files();
+        ls_files();
+    }
 
     FLOG_CHECK(flogfs_linux_close());
 

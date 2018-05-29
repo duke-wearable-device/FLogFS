@@ -35,11 +35,11 @@ either expressed or implied, of the FLogFS Project.
  */
 
 #include <assert.h>
+#include <stdio.h>
+#include <string.h>
 
 #include "flogfs.h"
 #include "flogfs_private.h"
-
-#include <string.h>
 
 #ifndef IS_DOXYGEN
 #if !FLOG_BUILD_CPP
@@ -459,6 +459,63 @@ flog_result_t flogfs_format() {
 
     flog_unlock_fs();
     flash_unlock();
+    return FLOG_SUCCESS;
+}
+
+flog_result_t flogfs_test() {
+    flog_lock_fs();
+
+    if (flogfs.state == FLOG_STATE_MOUNTED) {
+        // flog_unlock_fs();
+        // return FLOG_SUCCESS;
+    }
+
+    flash_lock();
+
+    printf("FLOGFS_TEST (%d):\n", flogfs.num_free_blocks);
+
+    for (uint32_t i = FS_FIRST_BLOCK; i < flogfs.params.number_of_blocks; i++) {
+        union {
+            flog_inode_init_sector_spare_t inode_spare0;
+            // flog_file_sector_spare_t file_spare0;
+        } spare_buffer_union;
+
+        if (FLOG_FAILURE == flash_open_page(i, 0)) {
+            continue;
+        }
+        if (FLOG_SUCCESS == flash_block_is_bad()) {
+            continue;
+        }
+
+        // Read the sector 0 spare to identify valid blocks
+        flash_read_spare((uint8_t *)&spare_buffer_union.inode_spare0, FLOG_INIT_SECTOR);
+
+        switch (spare_buffer_union.inode_spare0.type_id) {
+        case FLOG_BLOCK_TYPE_INODE:
+            printf("%d: INode\n", i);
+            break;
+        case FLOG_BLOCK_TYPE_FILE:
+            flog_universal_tail_sector_t universal_tail_sector;
+            flog_file_init_sector_header_t file_init_sector_header;
+
+            flog_get_file_init_sector(i, &file_init_sector_header);
+            flog_get_universal_tail_sector(i, &universal_tail_sector);
+            if (!invalid_universal_tail_sector(&universal_tail_sector)) {
+                printf("%d: File %d\n", i, file_init_sector_header.file_id);
+            }
+
+            break;
+        case FLOG_BLOCK_TYPE_UNALLOCATED:
+            // printf("%d: Unallocated\n", i);
+            break;
+        default:
+            // printf("%d: Default\n", i);
+            break;
+        }
+    }
+
+    flash_unlock();
+    flog_unlock_fs();
     return FLOG_SUCCESS;
 }
 

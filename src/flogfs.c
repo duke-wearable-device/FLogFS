@@ -384,16 +384,17 @@ static void free_blocks_initialize() {
 }
 
 static void free_blocks_free(flog_block_idx_t block) {
-    if ((block / 8) < sizeof(flogfs.free_block_bitmap)) {
-        flogfs.free_block_bitmap[block / 8] |= (1 << (block % 8));
-    }
+    assert(block / 8 < sizeof(flogfs.free_block_bitmap));
+    flogfs.free_block_bitmap[block / 8] |= (1 << (block % 8));
 }
 
 static void free_blocks_consumed(flog_block_idx_t block) {
+    assert(block / 8 < sizeof(flogfs.free_block_bitmap));
     flogfs.free_block_bitmap[block / 8] &= ~(1 << (block % 8));
 }
 
 static bool free_blocks_available(flog_block_idx_t block) {
+    assert(block / 8 < sizeof(flogfs.free_block_bitmap));
     return flogfs.free_block_bitmap[block / 8] & (1 << (block % 8));
 }
 

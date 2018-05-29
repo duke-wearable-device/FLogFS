@@ -181,19 +181,19 @@ void flash_debug(const char *f, va_list args) {
 }
 
 void flash_debug_warn(char const *f, ...) {
-#ifdef FLOGFS_VERBOSE_LOGGING
+    #ifdef FLOGFS_VERBOSE_LOGGING
     va_list args;
     va_start(args, f);
     flash_debug(f, args);
     va_end(args);
-#endif
+    #endif
 }
 
 void flash_debug_error(char const *f, ...) {
-#ifdef FLOGFS_VERBOSE_LOGGING
+    #ifdef FLOGFS_VERBOSE_LOGGING
     va_list args;
     va_start(args, f);
     flash_debug(f, args);
     va_end(args);
-#endif
+    #endif
 }

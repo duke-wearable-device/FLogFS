@@ -135,6 +135,8 @@ void generate_random_files(uint8_t number_of_files, uint8_t number_of_iterations
             for (auto i = 0; i < number_of_files; ++i) {
                 FLOG_CHECK(flogfs_rm(names[i]));
             }
+
+            std::cout << "After deleting" << std::endl;
             FLOG_CHECK(flogfs_test());
         }
 
@@ -209,6 +211,7 @@ int32_t main(int argc, char *argv[]) {
         FLOG_CHECK(flogfs_test());
     }
     else if (true) {
+        generate_random_files(10, 10, 16384, 16384 * 64);
         generate_random_files(10, 10, 16384, 16384 * 64);
     }
     else {

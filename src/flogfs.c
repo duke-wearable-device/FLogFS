@@ -1706,10 +1706,9 @@ flog_result_t flog_flush_write(flog_write_file_t *file) {
     // so we flush again in that situation.
     if (file == flogfs.dirty_block.file) {
         fr = flog_commit_file_sector(file, 0, 0);
+        assert(flogfs.dirty_block.file == nullptr);
+        assert(flogfs.dirty_block.block == FLOG_BLOCK_IDX_INVALID);
     }
-
-    assert(flogfs.dirty_block.file == nullptr);
-    assert(flogfs.dirty_block.block == FLOG_BLOCK_IDX_INVALID);
 
     return fr;
 }
@@ -1874,8 +1873,6 @@ void flog_inode_iterator_next(flog_inode_iterator_t *iter) {
             // Point to the first inode sector of the next block
             iter->sector = FLOG_INODE_FIRST_ENTRY_SECTOR;
         } else {
-            // The next doesn't exist
-            // WTF?
             flash_debug_warn("FLogFS:" LINESTR);
             // Don't do anything; this is dumb
             iter->sector -= 2;
@@ -1966,9 +1963,6 @@ flog_result_t flog_inode_prepare_new(flog_inode_iterator_t *iter) {
         flash_commit();
 
         iter->next_block = block_alloc.block;
-    }
-    else {
-        iter->block = FS_FIRST_BLOCK;
     }
 
     return FLOG_SUCCESS;
@@ -2148,12 +2142,6 @@ flog_file_find_result_t flog_find_file(char const *filename, flog_inode_iterator
     flog_file_find_result_t result;
 
     for (flog_inode_iterator_init(iter, flogfs.inode0);; flog_inode_iterator_next(iter)) {
-
-        /////////////
-        // Inode search
-        /////////////
-
-        // Check if the entry is valid
         flog_open_sector(iter->block, iter->sector);
         flash_read_sector(&buffer_union.sector_buffer, iter->sector, 0, sizeof(flog_inode_file_allocation_t));
 
@@ -2166,7 +2154,6 @@ flog_file_find_result_t flog_find_file(char const *filename, flog_inode_iterator
             goto failure;
         }
 
-        // Check if the name matches
         if (strncmp(filename, buffer_union.inode_file_allocation_sector.filename, FLOG_MAX_FNAME_LEN) != 0) {
             continue;
         }
@@ -2179,11 +2166,9 @@ flog_file_find_result_t flog_find_file(char const *filename, flog_inode_iterator
         flash_read_sector(&buffer_union.sector_buffer, iter->sector + 1, 0, sizeof(flog_timestamp_t));
 
         if (!invalid_inode_file_invalidation(&buffer_union.inode_file_invalidation_sector)) {
-            // This one is invalid
             continue;
         }
 
-        // This seems to be fine
         return result;
     }
 

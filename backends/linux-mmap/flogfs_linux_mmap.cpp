@@ -105,14 +105,14 @@ void flash_unlock() {
 }
 
 flog_result_t flash_open_page(uint16_t block, uint16_t page) {
-    fslog_debug("flash_open_page(%d, %d)", block, page);
+    // fslog_debug("flash_open_page(%d, %d)", block, page);
     open_block = block;
     open_page = page;
     return FLOG_RESULT(FLOG_SUCCESS);
 }
 
 void flash_close_page() {
-    fslog_debug("flash_close_page");
+    // fslog_debug("flash_close_page");
 }
 
 flog_result_t flash_erase_block(uint16_t block) {
@@ -132,15 +132,17 @@ void flash_commit() {
 }
 
 static void verified_memcpy(void *dst, const void *src, size_t size) {
-    fslog_debug("flash_write_verified(%d, %d)", (uint8_t *)dst - (uint8_t *)mapped, size);
     for (auto i = 0; i < size; ++i) {
-        assert(((uint8_t *)dst)[i] == FS_ERASE_CHAR);
+        if (((uint8_t *)dst)[i] != FS_ERASE_CHAR) {
+            printf("Write to un-erased memory: offset=%lu size=%lu (%d / %d)\n", (uint8_t *)dst - (uint8_t *)mapped, size, open_block, open_page);
+            assert(false);
+        }
     }
     memcpy(dst, src, size);
 }
 
 flog_result_t flash_read_sector(uint8_t *dst, uint8_t sector, uint16_t offset, uint16_t n) {
-    fslog_debug("flash_read_sector(%p, %d, %d, %d)", dst, sector, offset, n);
+    fslog_debug("flash_read_sector(%d/%d, %d, %d, %d)", open_block, open_page, sector, offset, n);
     sector = sector % FS_SECTORS_PER_PAGE;
     auto src = mapped_sector_ptr(sector, offset);
     memcpy(dst, src, n);
@@ -148,7 +150,7 @@ flog_result_t flash_read_sector(uint8_t *dst, uint8_t sector, uint16_t offset, u
 }
 
 flog_result_t flash_read_spare(uint8_t *dst, uint8_t sector) {
-    fslog_debug("flash_read_spare(%p, %d)", dst, sector);
+    fslog_debug("flash_read_spare(%d/%d, %d)", open_block, open_page, sector);
     sector = sector % FS_SECTORS_PER_PAGE;
     auto src = mapped_sector_ptr(0, 0x804 + sector * 0x10);
     memcpy(dst, src, sizeof(flog_file_sector_spare_t));
@@ -156,14 +158,14 @@ flog_result_t flash_read_spare(uint8_t *dst, uint8_t sector) {
 }
 
 void flash_write_sector(uint8_t const *src, uint8_t sector, uint16_t offset, uint16_t n) {
-    fslog_debug("flash_write_sector(%p, %d, %d, %d)", src, sector, offset, n);
+    fslog_debug("flash_write_sector(%d/%d, %d, %d, %d)", open_block, open_page, sector, offset, n);
     sector = sector % FS_SECTORS_PER_PAGE;
     auto dst = mapped_sector_ptr(sector, offset);
     verified_memcpy(dst, src, n);
 }
 
 void flash_write_spare(uint8_t const *src, uint8_t sector) {
-    fslog_debug("flash_write_spare(%p, %d)", src, sector);
+    fslog_debug("flash_write_spare(%d/%d, %d)", open_block, open_page, sector);
     sector = sector % FS_SECTORS_PER_PAGE;
     auto dst = mapped_sector_ptr(0, 0x804 + sector * 0x10);
     verified_memcpy(dst, src, sizeof(flog_file_sector_spare_t));

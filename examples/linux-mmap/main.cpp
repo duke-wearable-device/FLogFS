@@ -148,6 +148,8 @@ void generate_random_files(uint8_t number_of_files, uint8_t number_of_iterations
             FLOG_CHECK(flogfs_open_write(&files[i], names[i]));
         }
 
+        std::cout << "Writing" << std::endl;
+
         while (true) {
             auto done = true;
 

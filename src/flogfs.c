@@ -754,7 +754,6 @@ flog_result_t flogfs_mount() {
     done_scanning = 0;
     // THE OLD INODE CHAIN
     for (flog_inode_iterator_init(&inode_iter, inode0_idx);; flog_inode_iterator_next(&inode_iter)) {
-
         flog_open_sector(inode_iter.block, inode_iter.sector);
         flash_read_sector(&sector_buffer_union.sector_buffer, inode_iter.sector, 0,
                           sizeof(flog_inode_file_allocation_header_t));
@@ -1650,6 +1649,7 @@ flog_result_t flog_commit_file_sector(flog_write_file_t *file, uint8_t const *da
         file->offset = sizeof(flog_file_init_sector_header_t);
         file->bytes_in_block = 0;
         file->file_size += n;
+
         return FLOG_SUCCESS;
     } else {
         flog_file_init_sector_header_t *const file_init_sector_header = (flog_file_init_sector_header_t *)file->sector_buffer;

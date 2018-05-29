@@ -375,6 +375,28 @@ static bool invalid_block_stat_sector_with_key(flog_block_stat_sector_with_key_t
     return memcmp(header->key, flog_block_stat_key, sizeof(flog_block_stat_key)) != 0;
 }
 
+static void free_blocks_initialize() {
+    for (uint32_t i = 0; i < flogfs.params.number_of_blocks / 8; i++) {
+        if (i < sizeof(flogfs.free_block_bitmap)) {
+            flogfs.free_block_bitmap[i] = 0;
+        }
+    }
+}
+
+static void free_blocks_free(flog_block_idx_t block) {
+    if ((block / 8) < sizeof(flogfs.free_block_bitmap)) {
+        flogfs.free_block_bitmap[block / 8] |= (1 << (block % 8));
+    }
+}
+
+static void free_blocks_consumed(flog_block_idx_t block) {
+    flogfs.free_block_bitmap[block / 8] &= ~(1 << (block % 8));
+}
+
+static bool free_blocks_available(flog_block_idx_t block) {
+    return flogfs.free_block_bitmap[block / 8] & (1 << (block % 8));
+}
+
 //! @}
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -587,10 +609,6 @@ flog_result_t flogfs_mount() {
 
     flog_block_age_t age;
 
-    ////////////////////////////////////////////////////////////
-    // Claim the disk and get this show started
-    ////////////////////////////////////////////////////////////
-
     flog_lock_fs();
 
     if (flogfs.state == FLOG_STATE_MOUNTED) {
@@ -600,15 +618,7 @@ flog_result_t flogfs_mount() {
 
     flash_lock();
 
-    for (uint32_t i = 0; i < flogfs.params.number_of_blocks / 8; i++) {
-        if (i < sizeof(flogfs.free_block_bitmap)) {
-            flogfs.free_block_bitmap[i] = 0;
-        }
-    }
-
-    ////////////////////////////////////////////////////////////
-    // Initialize data structures
-    ////////////////////////////////////////////////////////////
+    free_blocks_initialize();
 
     last_allocation.block = FLOG_BLOCK_IDX_INVALID;
     last_allocation.timestamp = 0;
@@ -705,10 +715,8 @@ flog_result_t flogfs_mount() {
         case FLOG_BLOCK_TYPE_UNALLOCATED:
             flog_get_block_stat(i, &sector_buffer_union.stat_sector);
             flogfs.num_free_blocks += 1;
-            if ((i / 8) < sizeof(flogfs.free_block_bitmap)) {
-                flogfs.free_block_bitmap[i / 8] |= (1 << (i % 8));
-                flogfs.free_block_sum += sector_buffer_union.stat_sector.age;
-            }
+            flogfs.free_block_sum += sector_buffer_union.stat_sector.age;
+            free_blocks_free(i);
             break;
         default:
             flash_debug_error("FLogFS:" LINESTR);
@@ -1593,10 +1601,6 @@ void flogfs_stop_ls(flogfs_ls_iterator_t *iter) {
     // TODO: Unlock something?
 }
 
-///////////////////////////////////////////////////////////////////////////////
-// Static implementations
-///////////////////////////////////////////////////////////////////////////////
-
 flog_result_t flog_commit_file_sector(flog_write_file_t *file, uint8_t const *data, flog_sector_nbytes_t n) {
     flog_file_sector_spare_t file_sector_spare;
 
@@ -1711,27 +1715,6 @@ flog_result_t flog_flush_write(flog_write_file_t *file) {
     }
 
     return fr;
-}
-
-flog_block_alloc_t flog_allocate_block_iterate() {
-    flog_block_alloc_t block;
-
-    flog_block_stat_sector_t block_stat_sector;
-
-    block.block = FLOG_BLOCK_IDX_INVALID;
-
-    if (flogfs.free_block_bitmap[flogfs.allocate_head / 8] & (1 << (flogfs.allocate_head % 8))) {
-        // This block is okay to look at
-        flog_get_block_stat(flogfs.allocate_head, &block_stat_sector);
-        block.age = block_stat_sector.age;
-        block.block = flogfs.allocate_head;
-        assert(block.block != FLOG_BLOCK_IDX_INVALID);
-    }
-
-    // Move the head
-    flogfs.allocate_head = (flogfs.allocate_head + 1) % flogfs.params.number_of_blocks;
-
-    return block;
 }
 
 static void flog_prealloc_push(flog_block_idx_t block, flog_block_age_t age) {
@@ -2045,11 +2028,10 @@ void flog_invalidate_chain(flog_block_idx_t base, flog_file_id_t file_id) {
                 flash_erase_block(base);
 
                 flog_write_block_stat(base, &block_stat);
-                flogfs.free_block_bitmap[base / 8] |= 1 << (base % 8);
+                free_blocks_free(base);
+                flogfs.free_block_sum += block_stat.age;
 
                 num_freed += 1;
-
-                flogfs.free_block_sum += block_stat.age;
 
                 base = block_stat.next_block;
             }
@@ -2076,10 +2058,27 @@ flog_block_type_t flog_get_block_type(flog_block_idx_t block) {
     return (flog_block_type_t)type_id[0];
 }
 
-flog_block_alloc_t flog_allocate_block(int32_t threshold) {
+flog_block_alloc_t flog_allocate_block_iterate() {
     flog_block_alloc_t block;
 
-    // Don't lock because that should be done at higher level
+    flog_block_stat_sector_t block_stat_sector;
+
+    block.block = FLOG_BLOCK_IDX_INVALID;
+
+    if (free_blocks_available(flogfs.allocate_head)) {
+        flog_get_block_stat(flogfs.allocate_head, &block_stat_sector);
+        block.age = block_stat_sector.age;
+        block.block = flogfs.allocate_head;
+        assert(block.block != FLOG_BLOCK_IDX_INVALID);
+    }
+
+    flogfs.allocate_head = (flogfs.allocate_head + 1) % flogfs.params.number_of_blocks;
+
+    return block;
+}
+
+flog_block_alloc_t flog_allocate_block(int32_t threshold) {
+    flog_block_alloc_t block;
 
     if (flogfs.num_free_blocks == 0) {
         assert(flogfs.num_free_blocks > 0);
@@ -2101,17 +2100,14 @@ flog_block_alloc_t flog_allocate_block(int32_t threshold) {
 
         block = flog_allocate_block_iterate();
         if (block.block != FLOG_BLOCK_IDX_INVALID) {
-            // Found a block
             if (flog_age_is_sufficient(threshold, block.age)) {
-                flogfs.free_block_bitmap[block.block / 8] &= ~(1 << (block.block % 8));
+                free_blocks_consumed(block.block);
                 flogfs.num_free_blocks -= 1;
                 assert(flogfs.num_free_blocks != 0);
                 flogfs.free_block_sum -= block.age;
                 flogfs.mean_free_age = flogfs.free_block_sum / flogfs.num_free_blocks;
-                // It's actually okay!
                 break;
             } else {
-                // Leave it for someone else
                 flog_prealloc_push(block.block, block.age);
             }
         }

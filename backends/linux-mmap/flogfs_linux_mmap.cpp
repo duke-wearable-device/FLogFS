@@ -1,10 +1,12 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/mman.h>
-#include <cstring>
-#include <cassert>
+
+#include <cstdlib>
 #include <cstdarg>
 #include <cstdio>
+#include <cstring>
+#include <cassert>
 
 #include <flogfs.h>
 #include <flogfs_private.h>
@@ -169,6 +171,10 @@ void flash_write_spare(uint8_t const *src, uint8_t sector) {
     sector = sector % FS_SECTORS_PER_PAGE;
     auto dst = mapped_sector_ptr(0, 0x804 + sector * 0x10);
     verified_memcpy(dst, src, sizeof(flog_file_sector_spare_t));
+}
+
+uint32_t flash_random() {
+    return random();
 }
 
 constexpr uint16_t DebugLineMax = 256;

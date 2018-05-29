@@ -161,6 +161,10 @@ static inline void flash_write_spare(uint8_t const *src, uint8_t sector) {
     flash.page_write_continued(src, 0x804 + sector * 0x10, 4);
 }
 
+static inline uint32_t flash_random() {
+    return 0;
+}
+
 static inline void flash_debug_warn(char const *msg) {
     evt_log.add(msg, EventItem::SEVERITY_WARNING);
 }

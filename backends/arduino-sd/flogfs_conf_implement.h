@@ -39,4 +39,6 @@ void flash_debug_warn(char const *f, ...);
 
 void flash_debug_error(char const *f, ...);
 
+uint32_t flash_random();
+
 #endif

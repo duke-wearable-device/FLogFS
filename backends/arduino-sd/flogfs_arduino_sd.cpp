@@ -1,3 +1,5 @@
+#include <Arduino.h>
+
 #include <cstring>
 #include <cassert>
 #include <cstdarg>
@@ -126,6 +128,10 @@ void flash_write_spare(uint8_t const *src, uint8_t sector) {
     sector = sector % FS_SECTORS_PER_PAGE;
     auto sd_block = get_sd_block_in_open_page(FS_SECTORS_PER_PAGE);
     sd_raw_write_data(&sd, sd_block, sector * 0x10, sizeof(flog_file_sector_spare_t), src, true);
+}
+
+uint32_t flash_random() {
+    return random(UINT32_MAX);
 }
 
 constexpr uint16_t DebugLineMax = 256;

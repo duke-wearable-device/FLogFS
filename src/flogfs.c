@@ -51,10 +51,6 @@ extern "C" {
 
 #include "flogfs_conf_implement.h"
 
-static inline void memzero(void *ptr, size_t size) {
-    memset(ptr, 0, size);
-}
-
 //! @addtogroup FLogPrivate
 //! @{
 
@@ -1126,6 +1122,9 @@ static flog_read_walk_result_t flogfs_read_walk_sectors(flog_read_file_t *file, 
         case FLOG_WALK_SKIP_BLOCK: {
             return FLOG_WALK_CONTINUE;
         }
+        case FLOG_WALK_CONTINUE: {
+            break;
+        }
         default: {
             assert(false);
             break;
@@ -1169,6 +1168,9 @@ static flog_result_t flogfs_read_walk_file(flog_read_file_t *file, file_walk_fn_
             }
             case FLOG_WALK_STOP: {
                 return FLOG_SUCCESS;
+            }
+            case FLOG_WALK_CONTINUE: {
+                break;
             }
             default: {
                 assert(false);

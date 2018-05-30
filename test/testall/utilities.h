@@ -67,7 +67,7 @@ struct BlockAnalysis {
     }
 
     bool has_more() {
-        return next_block != FLOG_BLOCK_IDX_INVALID;
+        return next_block != FLOG_BLOCK_IDX_ERASED;
     }
 
     std::vector<INodeSector> file_entries() {

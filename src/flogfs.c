@@ -1619,8 +1619,8 @@ flog_result_t flog_walk(file_walk_fn_t walk_fn, void *arg) {
                     inode->file_id = FLOG_FILE_ID_INVALID;
                     inode->first_block = FLOG_BLOCK_IDX_INVALID;
                     inode->last_block = FLOG_BLOCK_IDX_INVALID;
-                    inode->created_at = FLOG_TIMESTAMP_ERASED;
-                    inode->deleted_at = FLOG_TIMESTAMP_ERASED;
+                    inode->created_at = FLOG_TIMESTAMP_INVALID;
+                    inode->deleted_at = FLOG_TIMESTAMP_INVALID;
 
                     flog_open_sector(state.block, inode->sector);
                     flash_read_sector((uint8_t *)&allocation, inode->sector, 0, sizeof(flog_inode_file_allocation_t));

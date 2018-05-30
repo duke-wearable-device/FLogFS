@@ -250,14 +250,14 @@ std::ostream& operator<<(std::ostream& os, const BlockAnalysis& ba) {
         case FLOG_BLOCK_TYPE_UNALLOCATED: os << "Unallocated"; break;
         case FLOG_BLOCK_TYPE_INODE: {
             os << "INode " << ba.inodes;
-            if (ba.next_block != FLOG_BLOCK_IDX_INVALID) {
+            if (ba.next_block != FLOG_BLOCK_IDX_ERASED) {
                 os << " -> " << ba.next_block << "";
             }
             break;
         }
         case FLOG_BLOCK_TYPE_FILE: {
             os << "#" << ba.file_id << " (" << ba.files << ")";
-            if (ba.next_block != FLOG_BLOCK_IDX_INVALID) {
+            if (ba.next_block != FLOG_BLOCK_IDX_ERASED) {
                 os << " " << ba.bytes_in_block << " -> " << ba.next_block << "";
             }
             break;
@@ -318,7 +318,7 @@ Analysis analyze_file_system() {
 }
 
 bool Analysis::verify() {
-    for (auto &inodes = blocks_[0]; ; ) {
+    for (auto &inodes = blocks_[FS_FIRST_BLOCK]; ; ) {
         std::cout << inodes << std::endl;
 
         EXPECT_TRUE(inodes.is_inode());
@@ -326,9 +326,9 @@ bool Analysis::verify() {
         auto files = inodes.file_entries();
         for (auto &f : files) {
             for (auto &data = blocks_[f.first_block]; ; ) {
-                EXPECT_TRUE(data.is_file());
-
                 std::cout << data << std::endl;
+
+                EXPECT_TRUE(data.is_file());
 
                 if (!data.has_more()) {
                     break;

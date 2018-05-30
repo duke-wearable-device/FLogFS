@@ -116,11 +116,6 @@ typedef struct {
         flog_result_t page_open_result;
     } cache_status;
 
-    flog_block_age_t mean_free_age;
-    uint32_t free_block_sum;
-    //! The number of free blocks
-    flog_block_idx_t num_free_blocks;
-
     //! A lock to serialize some FS operations
     fs_lock_t lock;
     //! A lock to block any allocation-related operations
@@ -568,8 +563,6 @@ flog_result_t flogfs_test() {
     flog_lock_fs();
     flash_lock();
 
-    printf("FLOGFS_TEST (%d):\n", flogfs.num_free_blocks);
-
     for (uint32_t i = FS_FIRST_BLOCK; i < flogfs.params.number_of_blocks; i++) {
         union {
             flog_inode_init_sector_spare_t inode_spare0;
@@ -680,7 +673,6 @@ flog_result_t flogfs_mount() {
 
     flogfs.allocate_head = 0;
 
-    flogfs.num_free_blocks = 0;
     flogfs.max_file_id = 0;
 
     flogfs.cache_status = { 0 };
@@ -738,10 +730,6 @@ flog_result_t flogfs_mount() {
             break;
         }
         case FLOG_BLOCK_TYPE_UNALLOCATED: {
-            flog_get_block_stat(i, &sector_buffer_union.stat_sector);
-            flogfs.num_free_blocks += 1;
-            flogfs.free_block_sum += sector_buffer_union.stat_sector.age;
-            free_blocks_free(i);
             break;
         }
         default: {
@@ -761,9 +749,6 @@ flog_result_t flogfs_mount() {
         last_allocation.block = universal_tail_sector.next_block;
         last_allocation.age = universal_tail_sector.next_age;
     }
-
-    assert(flogfs.num_free_blocks > 0);
-    flogfs.mean_free_age = flogfs.free_block_sum / flogfs.num_free_blocks;
 
     if (inode0_idx == FLOG_BLOCK_IDX_INVALID) {
         flash_debug_error("FLogFS:" LINESTR);
@@ -843,10 +828,6 @@ flog_result_t flogfs_mount() {
                 flash_write_spare((uint8_t *)&spare_buffer_union.file_spare0, FLOG_INIT_SECTOR);
                 flash_commit();
 
-                flogfs.num_free_blocks -= 1;
-                flogfs.free_block_sum -= last_allocation.age;
-                flogfs.mean_free_age = flogfs.free_block_sum / flogfs.num_free_blocks;
-
                 flogfs.t = last_allocation.timestamp + 1;
             }
             break;
@@ -868,9 +849,6 @@ flog_result_t flogfs_mount() {
             flash_write_spare((uint8_t *)&init_buffer_union.inode_init_sector, FLOG_INIT_SECTOR);
             flash_commit();
 
-            flogfs.num_free_blocks -= 1;
-            flogfs.free_block_sum -= last_allocation.age;
-            flogfs.mean_free_age = flogfs.free_block_sum / flogfs.num_free_blocks;
             break;
         default:
             break;
@@ -1815,10 +1793,7 @@ static flog_block_alloc_t flog_prealloc_pop(int32_t threshold) {
 }
 
 static uint_fast8_t flog_age_is_sufficient(int32_t threshold, flog_block_age_t age) {
-    if ((int32_t)flogfs.mean_free_age - (int32_t)age >= threshold) {
-        return 1;
-    }
-    return 0;
+    return 1;
 }
 
 static flog_result_t flog_open_page(flog_block_idx_t block, uint16_t page) {
@@ -1938,8 +1913,6 @@ static flog_result_t flog_inode_prepare_new(flog_inode_iterator_t *iter) {
             return FLOG_FAILURE;
         }
 
-        flogfs.num_free_blocks -= 1;
-
         flog_unlock_allocate();
 
         flog_open_sector(iter->block, FLOG_TAIL_SECTOR);
@@ -1978,51 +1951,41 @@ static void flog_get_block_stat(flog_block_idx_t block, flog_block_stat_sector_t
 
 static void flog_invalidate_chain(flog_block_idx_t block, flog_file_id_t file_id) {
     flog_file_tail_sector_header_t file_tail_sector;
+    flog_block_stat_sector_t block_stat;
+    flog_block_idx_t num_freed = 0;
 
     union {
         flog_file_invalidation_sector_t invalidation;
         flog_file_init_sector_header_t init_sector;
     } init_buffer_union;
 
-    flog_block_stat_sector_t block_stat;
-
-    flog_block_idx_t num_freed = 0;
-
     flog_lock_delete();
 
-    while (1) {
-        if (block == FLOG_BLOCK_IDX_INVALID) {
+    while (block != FLOG_BLOCK_IDX_INVALID) {
+        switch (flog_get_block_type(block)) {
+        case FLOG_BLOCK_TYPE_UNALLOCATED: {
+            flog_get_block_stat(block, &block_stat);
+            block = FLOG_BLOCK_IDX_INVALID;
             break;
         }
-
-        switch (flog_get_block_type(block)) {
-        case FLOG_BLOCK_TYPE_UNALLOCATED:
-            flog_get_block_stat(block, &block_stat);
-            block = block_stat.next_block;
-            goto done;
-            break;
-        case FLOG_BLOCK_TYPE_FILE:
-            // Check if this is indeed still the correct file
+        case FLOG_BLOCK_TYPE_FILE: {
             flog_open_sector(block, FLOG_INIT_SECTOR);
             flash_read_sector((uint8_t *)&init_buffer_union.init_sector, FLOG_INIT_SECTOR, 0, sizeof(flog_file_init_sector_header_t));
             if (is_file_init_sector_header_for_file(&init_buffer_union.init_sector, file_id)) {
-                // Well it's time to invalidate this
-                // Get the age of this block
-                // The the age and index of the next block
-                block_stat.age = init_buffer_union.init_sector.age;
                 flog_open_sector(block, FLOG_TAIL_SECTOR);
                 flash_read_sector((uint8_t *)&file_tail_sector, FLOG_TAIL_SECTOR, 0, sizeof(flog_file_tail_sector_header_t));
+                block_stat.age = init_buffer_union.init_sector.age;
                 block_stat.next_block = file_tail_sector.next_block;
                 block_stat.next_age = file_tail_sector.next_age;
                 block_stat.timestamp = ++flogfs.t;
-                // Need to clear cache
                 flog_close_sector();
 
                 flash_erase_block(block);
 
+                // TODO: Add these to prealloc?
+
                 free_blocks_free(block);
                 flog_write_block_stat(block, &block_stat);
-                flogfs.free_block_sum += block_stat.age;
 
                 num_freed += 1;
 
@@ -2032,15 +1995,14 @@ static void flog_invalidate_chain(flog_block_idx_t block, flog_file_id_t file_id
                 assert(false);
             }
             break;
-        default:
+        }
+        default: {
             assert(0);
             break;
         }
+        }
     }
-done:
-    flogfs.num_free_blocks += num_freed;
-    assert(flogfs.num_free_blocks > 0);
-    flogfs.mean_free_age = flogfs.free_block_sum / flogfs.num_free_blocks;
+
     flog_unlock_delete();
 }
 
@@ -2084,13 +2046,6 @@ static uint_fast8_t flog_prealloc_is_full() {
 static flog_block_alloc_t flog_allocate_block(int32_t threshold) {
     flog_block_alloc_t block;
 
-    if (flogfs.num_free_blocks == 0) {
-        assert(flogfs.num_free_blocks > 0);
-        block.block = FLOG_BLOCK_IDX_INVALID;
-        assert(false);
-        return block;
-    }
-
     assert(!flog_prealloc_is_empty());
 
     for (flog_block_idx_t i = flogfs.params.number_of_blocks; i; i--) {
@@ -2100,10 +2055,6 @@ static flog_block_alloc_t flog_allocate_block(int32_t threshold) {
                 flog_prealloc_prime();
             }
             free_blocks_consumed(block.block);
-            flogfs.num_free_blocks -= 1;
-            assert(flogfs.num_free_blocks != 0);
-            flogfs.free_block_sum -= block.age;
-            flogfs.mean_free_age = flogfs.free_block_sum / flogfs.num_free_blocks;
             return block;
         }
 

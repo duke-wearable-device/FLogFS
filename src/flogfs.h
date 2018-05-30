@@ -81,10 +81,12 @@ typedef enum {
 typedef uint32_t flog_timestamp_t;
 typedef uint16_t flog_block_idx_t;
 typedef uint32_t flog_block_age_t;
+typedef uint16_t flog_sector_idx_t;
 typedef uint32_t flog_file_id_t;
 typedef uint16_t flog_sector_nbytes_t;
 typedef uint32_t flog_block_nbytes_t;
-typedef uint16_t inode_index_t;
+typedef uint16_t flog_inode_index_t;
+typedef uint16_t flog_page_index_t;
 //! @}
 
 /*!
@@ -98,12 +100,12 @@ typedef struct {
     //! The previous block
     flog_block_idx_t previous_block;
     //! The index of the current inode entry -- relative to start point
-    uint16_t inode_idx;
+    flog_inode_index_t inode_idx;
     //! The index of the current inode block -- absolute
-    uint16_t inode_block_idx;
+    flog_inode_index_t inode_block_idx;
     //! The current sector -- If this is
     //! FS_SECTORS_PER_PAGE * FS_PAGES_PER_BLOCK, at end of block
-    uint16_t sector;
+    flog_sector_idx_t sector;
 } flog_inode_iterator_t;
 
 typedef flog_inode_iterator_t flogfs_ls_iterator_t;
@@ -120,10 +122,10 @@ typedef struct flog_read_file_t {
     //! Offset of read head from the start of the file
     uint32_t read_head;
     //! Block index of read head
-    uint16_t first_block;
-    uint16_t block;
+    flog_block_idx_t first_block;
+    flog_block_idx_t block;
     //! Sector index of read head
-    uint16_t sector;
+    flog_sector_idx_t sector;
     //! Index of the read head inside sector
     uint16_t offset;
     //! Number of bytes remaining in current sector
@@ -147,9 +149,9 @@ typedef struct flog_write_file_t {
     //! Size of the file and by consequence the offset of write head from start of file
     uint32_t file_size;
     //! Block index of write head
-    uint16_t block;
+    flog_block_idx_t block;
     //! Sector index of write head
-    uint16_t sector;
+    flog_sector_idx_t sector;
     //! Index of write header insider current sector
     uint16_t offset;
     //! The number of bytes remaining in the sector before forcing a cache flush

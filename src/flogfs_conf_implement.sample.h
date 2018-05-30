@@ -58,8 +58,8 @@ static inline void fs_unlock(fs_lock_t *lock) {
 }
 
 static flash_spare_t flog_spare_buffer;
-static uint16_t flash_block;
-static uint16_t flash_page;
+static flog_block_idx_t flash_block;
+static flog_page_index_t flash_page;
 static uint8_t have_metadata;
 static uint8_t page_open;
 
@@ -76,7 +76,7 @@ static inline void flash_unlock() {
     flash.unlock();
 }
 
-static inline flog_result_t flash_open_page(uint16_t block, uint16_t page) {
+static inline flog_result_t flash_open_page(flog_block_idx_t block, flog_page_index_t page) {
     flash_block = block;
     flash_page = page;
     have_metadata = 0;
@@ -90,21 +90,9 @@ static inline void flash_close_page() {
     flash.unlock();
 }
 
-static inline flog_result_t flash_erase_block(uint16_t block) {
+static inline flog_result_t flash_erase_block(flog_block_idx_t block) {
     page_open = 0;
     return FLOG_RESULT(flash.erase_block(block));
-}
-
-static inline flog_result_t flash_get_spares() {
-    // Read metadata from flash
-    if (!have_metadata) {
-        have_metadata = 1;
-    }
-    return FLOG_RESULT(flash.page_read_continued(flog_spare_buffer, 0x800, sizeof(flog_spare_buffer)));
-}
-
-static inline uint8_t *flash_spare(uint8_t sector) {
-    return &flog_spare_buffer[sector * 16 + 4];
 }
 
 static inline flog_result_t flash_block_is_bad() {
@@ -132,11 +120,11 @@ static inline void flash_commit() {
  @param n The number of bytes to transfer
  @return The success or failure of the operation
  */
-static inline flog_result_t flash_read_sector(uint8_t *dst, uint8_t sector, uint16_t offset, uint16_t n) {
+static inline flog_result_t flash_read_sector(uint8_t *dst, flog_sector_idx_t sector, uint16_t offset, uint16_t n) {
     return FLOG_RESULT(flash.page_read_continued(dst, FS_SECTOR_SIZE * sector + offset, n));
 }
 
-static inline flog_result_t flash_read_spare(uint8_t *dst, uint8_t sector) {
+static inline flog_result_t flash_read_spare(uint8_t *dst, flog_sector_idx_t sector) {
     return FLOG_RESULT(flash.page_read_continued(dst, FS_SECTOR_SIZE * sector, 4));
 }
 
@@ -147,7 +135,7 @@ static inline flog_result_t flash_read_spare(uint8_t *dst, uint8_t sector) {
  @param offset The offset to write the data
  @param n The number of bytes to write
  */
-static inline void flash_write_sector(uint8_t const *src, uint8_t sector, uint16_t offset, uint16_t n) {
+static inline void flash_write_sector(uint8_t const *src, flog_sector_idx_t sector, uint16_t offset, uint16_t n) {
     flash.page_write_continued(src, FS_SECTOR_SIZE * sector + offset, n);
 }
 
@@ -157,7 +145,7 @@ static inline void flash_write_sector(uint8_t const *src, uint8_t sector, uint16
 
  @note This doesn't commit the transaction
  */
-static inline void flash_write_spare(uint8_t const *src, uint8_t sector) {
+static inline void flash_write_spare(uint8_t const *src, flog_sector_idx_t sector) {
     flash.page_write_continued(src, 0x804 + sector * 0x10, 4);
 }
 

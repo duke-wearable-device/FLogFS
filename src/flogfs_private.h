@@ -123,6 +123,7 @@ typedef enum {
 #define FLOG_TIMESTAMP_INVALID ((flog_timestamp_t)(-1))
 #define FLOG_SECTOR_NBYTES_INVALID ((flog_sector_nbytes_t)(-1))
 #define FLOG_SECTOR_TYPE_ID_INVALID ((uint8_t)-1)
+#define FLOG_SECTOR_IDX_INVALID ((flog_sector_idx_t)-1)
 
 //! @}
 
@@ -154,7 +155,7 @@ typedef struct {
 typedef struct {
     uint8_t type_id;
     uint8_t nothing;
-    inode_index_t inode_index;
+    flog_inode_index_t inode_index;
 } flog_inode_init_sector_spare_t;
 
 typedef struct {

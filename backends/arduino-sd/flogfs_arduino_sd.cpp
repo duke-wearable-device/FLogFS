@@ -15,22 +15,22 @@
 extern "C" void debugfln(const char *f, ...);
 
 static sd_raw_t sd;
-static uint16_t open_block{ 0 };
-static uint16_t open_page{ 0 };
-static uint16_t last_block_erased{ ((uint16_t)-1) };
+static flog_block_idx_t open_block = FLOG_BLOCK_IDX_INVALID;
+static flog_block_idx_t last_block_erased = FLOG_BLOCK_IDX_INVALID;
+static flog_page_index_t open_page{ 0 };
 static uint16_t pages_per_block{ 0 };
 
 #define fslog_trace(f, ...) flash_debug_warn(f, ##__VA_ARGS__)
 
 #define fslog_debug(f, ...) flash_debug_warn(f, ##__VA_ARGS__)
 
-static inline uint32_t get_sd_block(uint16_t block, uint16_t page, uint8_t sector) {
+static inline uint32_t get_sd_block(flog_block_idx_t block, flog_page_index_t page, flog_sector_idx_t sector) {
     return (block * pages_per_block * FS_SECTORS_PER_PAGE_INTERNAL) +
            (page * FS_SECTORS_PER_PAGE_INTERNAL) +
            (sector);
 }
 
-static inline uint32_t get_sd_block_in_open_page(uint8_t sector) {
+static inline uint32_t get_sd_block_in_open_page(flog_sector_idx_t sector) {
     return get_sd_block(open_block, open_page, sector);
 }
 
@@ -71,7 +71,7 @@ void flash_lock() {
 void flash_unlock() {
 }
 
-flog_result_t flash_open_page(uint16_t block, uint16_t page) {
+flog_result_t flash_open_page(flog_block_idx_t block, flog_page_index_t page) {
     fslog_debug("flash_open_page(%d, %d)", block, page);
     open_block = block;
     open_page = page;
@@ -85,7 +85,7 @@ void flash_close_page() {
     fslog_debug("flash_close_page\n");
 }
 
-flog_result_t flash_erase_block(uint16_t block) {
+flog_result_t flash_erase_block(flog_block_idx_t block) {
     auto first_sd_block = get_sd_block(block, 0, 0);
     auto last_sd_block = get_sd_block(block + 1, 0, 0);
     fslog_debug("flash_erase_block(%d, %d -> %d)", block, first_sd_block, last_sd_block);
@@ -103,27 +103,27 @@ void flash_set_bad_block() {
 void flash_commit() {
 }
 
-flog_result_t flash_read_sector(uint8_t *dst, uint8_t sector, uint16_t offset, uint16_t n) {
+flog_result_t flash_read_sector(uint8_t *dst, flog_sector_idx_t sector, uint16_t offset, uint16_t n) {
     fslog_debug("flash_read_sector(%p, %d, %d, %d)", dst, sector, offset, n);
     sector = sector % FS_SECTORS_PER_PAGE;
     return FLOG_RESULT(sd_raw_read_data(&sd, get_sd_block_in_open_page(sector), offset, n, dst));
 }
 
-flog_result_t flash_read_spare(uint8_t *dst, uint8_t sector) {
+flog_result_t flash_read_spare(uint8_t *dst, flog_sector_idx_t sector) {
     fslog_debug("flash_read_spare(%p, %d)", dst, sector);
     sector = sector % FS_SECTORS_PER_PAGE;
     auto sd_block = get_sd_block_in_open_page(FS_SECTORS_PER_PAGE);
     return FLOG_RESULT(sd_raw_read_data(&sd, sd_block, sector * 0x10, sizeof(flog_file_sector_spare_t), dst));
 }
 
-void flash_write_sector(uint8_t const *src, uint8_t sector, uint16_t offset, uint16_t n) {
+void flash_write_sector(uint8_t const *src, flog_sector_idx_t sector, uint16_t offset, uint16_t n) {
     bool preserve_partial_write = last_block_erased != open_block;
     fslog_debug("flash_write_sector(%p, %d, %d, %d, %s)", src, sector, offset, n, preserve_partial_write ? "PRESERVE" : "IGNORE-EXISTING");
     sector = sector % FS_SECTORS_PER_PAGE;
     sd_raw_write_data(&sd, get_sd_block_in_open_page(sector), offset, n, src, preserve_partial_write);
 }
 
-void flash_write_spare(uint8_t const *src, uint8_t sector) {
+void flash_write_spare(uint8_t const *src, flog_sector_idx_t sector) {
     fslog_debug("flash_write_spare(%p, %d)", src, sector);
     sector = sector % FS_SECTORS_PER_PAGE;
     auto sd_block = get_sd_block_in_open_page(FS_SECTORS_PER_PAGE);

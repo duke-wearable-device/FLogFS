@@ -111,7 +111,7 @@ typedef struct {
     //! @note This must be protected under @ref flogfs_t::lock !
     struct {
         flog_block_idx_t current_open_block;
-        uint16_t current_open_page;
+        flog_page_index_t current_open_page;
         uint_fast8_t page_open;
         flog_result_t page_open_result;
     } cache_status;
@@ -193,14 +193,14 @@ static flog_file_find_result_t flog_find_file(char const *filename, flog_inode_i
 /*!
  @brief Open a page (read to flash cache) only if necessary
  */
-static inline flog_result_t flog_open_page(uint16_t block, uint16_t page);
+static inline flog_result_t flog_open_page(flog_block_idx_t block, flog_page_index_t page);
 
 /*!
  @brief Open the page corresponding to a sector
  @param block The block
  @param sector The sector you wish to access
  */
-static inline flog_result_t flog_open_sector(uint16_t block, uint16_t sector);
+static inline flog_result_t flog_open_sector(flog_block_idx_t block, flog_sector_idx_t sector);
 
 static void flog_close_sector();
 
@@ -243,7 +243,7 @@ static flog_result_t flog_inode_prepare_new(flog_inode_iterator_t *iter);
  Sectors are written and read out of order so this is used to get the correct
  sequence
  */
-static inline uint16_t flog_increment_sector(uint16_t sector);
+static inline flog_sector_idx_t flog_increment_sector(flog_sector_idx_t sector);
 
 static flog_result_t flog_flush_write(flog_write_file_t *file);
 
@@ -866,7 +866,7 @@ uint32_t flogfs_read(flog_read_file_t *file, uint8_t *dst, uint32_t nbytes) {
     uint16_t to_read;
     flog_file_sector_spare_t file_sector_spare;
     flog_block_idx_t block;
-    uint16_t sector;
+    flog_sector_idx_t sector;
 
     union {
         flog_file_tail_sector_header_t file_tail_sector_header;
@@ -1006,8 +1006,8 @@ uint32_t flogfs_write_file_size(flog_write_file_t *file) {
 }
 
 typedef struct flogfs_walk_state_t {
-    uint16_t block;
-    uint16_t sector;
+    flog_block_idx_t block;
+    flog_sector_idx_t sector;
     uint_fast8_t last_block;
     flog_file_tail_sector_header_t *tail_header;
     flog_file_sector_spare_t *sector_spare;
@@ -1142,8 +1142,8 @@ static flog_result_t flogfs_read_calc_file_size(flog_read_file_t *file) {
 typedef struct file_seek_t {
     uint32_t position;
     uint32_t desired;
-    uint16_t block;
-    uint16_t sector;
+    flog_block_idx_t block;
+    flog_sector_idx_t sector;
     uint16_t offset;
     uint16_t bytes_remaining;
 } file_seek_t;
@@ -1675,7 +1675,7 @@ static flog_block_alloc_t flog_prealloc_pop(int32_t threshold) {
     return *entry;
 }
 
-static flog_result_t flog_open_page(flog_block_idx_t block, uint16_t page) {
+static flog_result_t flog_open_page(flog_block_idx_t block, flog_page_index_t page) {
     if (flogfs.cache_status.page_open && (flogfs.cache_status.current_open_block == block) &&
         (flogfs.cache_status.current_open_page == page)) {
         return flogfs.cache_status.page_open_result;
@@ -1690,7 +1690,7 @@ static flog_result_t flog_open_page(flog_block_idx_t block, uint16_t page) {
     return flogfs.cache_status.page_open_result;
 }
 
-static flog_result_t flog_open_sector(flog_block_idx_t block, uint16_t sector) {
+static flog_result_t flog_open_sector(flog_block_idx_t block, flog_sector_idx_t sector) {
     return flog_open_page(block, sector / FS_SECTORS_PER_PAGE);
 }
 
@@ -1917,8 +1917,8 @@ static flog_block_alloc_t flog_allocate_block(int32_t threshold) {
     return block;
 }
 
-static uint16_t flog_increment_sector(uint16_t sector) {
-    uint16_t last_sector = (flogfs.params.pages_per_block * FS_SECTORS_PER_PAGE) - 1;
+static flog_sector_idx_t flog_increment_sector(flog_sector_idx_t sector) {
+    flog_sector_idx_t last_sector = (flogfs.params.pages_per_block * FS_SECTORS_PER_PAGE) - 1;
     if (sector == FLOG_TAIL_SECTOR - 1) {
         return FS_SECTORS_PER_PAGE;
     }

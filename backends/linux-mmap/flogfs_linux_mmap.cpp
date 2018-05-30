@@ -22,9 +22,9 @@ constexpr uint32_t FS_SECTORS_PER_PAGE_INTERNAL = (FS_SECTORS_PER_PAGE + 1);
 static void *mapped{ nullptr };
 static int32_t fd{ -1 };
 static uint32_t mapped_size{ 0 };
-static uint16_t open_block{ 0 };
-static uint16_t open_page{ 0 };
-static uint32_t pages_per_block{ 0 };
+static flog_block_idx_t open_block = FLOG_BLOCK_IDX_INVALID;
+static flog_page_index_t open_page{ 0 };
+static uint16_t pages_per_block{ 0 };
 
 static inline uint32_t sectors_per_block() {
     return FS_SECTORS_PER_PAGE_INTERNAL * pages_per_block;
@@ -69,21 +69,21 @@ flog_result_t flogfs_linux_close() {
     return FLOG_SUCCESS;
 }
 
-static inline uint32_t get_offset(uint16_t block, uint16_t page, uint8_t sector, uint16_t offset) {
+static inline uint32_t get_offset(flog_block_idx_t block, flog_page_index_t page, flog_sector_idx_t sector, uint16_t offset) {
     return (block * sectors_per_block() * FS_SECTOR_SIZE) +
         (page * FS_SECTORS_PER_PAGE_INTERNAL * FS_SECTOR_SIZE) +
         (sector * FS_SECTOR_SIZE) + offset;
 }
 
-static inline uint32_t get_offset_in_block(uint8_t sector, uint16_t offset) {
+static inline uint32_t get_offset_in_block(flog_sector_idx_t sector, uint16_t offset) {
     return get_offset(open_block, open_page, sector, offset);
 }
 
-static inline void *mapped_sector_absolute_ptr(uint16_t block, uint16_t page, uint8_t sector, uint16_t offset) {
+static inline void *mapped_sector_absolute_ptr(flog_block_idx_t block, flog_page_index_t page, flog_sector_idx_t sector, uint16_t offset) {
     return ((uint8_t *)mapped) + get_offset(block, page, sector, offset);
 }
 
-static inline void *mapped_sector_ptr(uint8_t sector, uint16_t offset) {
+static inline void *mapped_sector_ptr(flog_sector_idx_t sector, uint16_t offset) {
     return mapped_sector_absolute_ptr(open_block, open_page, sector, offset);
 }
 
@@ -106,7 +106,7 @@ void flash_lock() {
 void flash_unlock() {
 }
 
-flog_result_t flash_open_page(uint16_t block, uint16_t page) {
+flog_result_t flash_open_page(flog_block_idx_t block, flog_page_index_t page) {
     // fslog_debug("flash_open_page(%d, %d)", block, page);
     open_block = block;
     open_page = page;
@@ -117,7 +117,7 @@ void flash_close_page() {
     // fslog_debug("flash_close_page");
 }
 
-flog_result_t flash_erase_block(uint16_t block) {
+flog_result_t flash_erase_block(flog_block_idx_t block) {
     fslog_debug("flash_erase_block(%d)", block);
     memset(mapped_sector_absolute_ptr(block, 0, 0, 0), FS_ERASE_CHAR, sectors_per_block() * FS_SECTOR_SIZE);
     return FLOG_RESULT(FLOG_SUCCESS);
@@ -143,7 +143,7 @@ static void verified_memcpy(void *dst, const void *src, size_t size) {
     memcpy(dst, src, size);
 }
 
-flog_result_t flash_read_sector(uint8_t *dst, uint8_t sector, uint16_t offset, uint16_t n) {
+flog_result_t flash_read_sector(uint8_t *dst, flog_sector_idx_t sector, uint16_t offset, uint16_t n) {
     fslog_debug("flash_read_sector(%d/%d, %d, %d, %d)", open_block, open_page, sector, offset, n);
     sector = sector % FS_SECTORS_PER_PAGE;
     auto src = mapped_sector_ptr(sector, offset);
@@ -151,7 +151,7 @@ flog_result_t flash_read_sector(uint8_t *dst, uint8_t sector, uint16_t offset, u
     return FLOG_SUCCESS;
 }
 
-flog_result_t flash_read_spare(uint8_t *dst, uint8_t sector) {
+flog_result_t flash_read_spare(uint8_t *dst, flog_sector_idx_t sector) {
     fslog_debug("flash_read_spare(%d/%d, %d)", open_block, open_page, sector);
     sector = sector % FS_SECTORS_PER_PAGE;
     auto src = mapped_sector_ptr(0, 0x804 + sector * 0x10);
@@ -159,14 +159,14 @@ flog_result_t flash_read_spare(uint8_t *dst, uint8_t sector) {
     return FLOG_SUCCESS;
 }
 
-void flash_write_sector(uint8_t const *src, uint8_t sector, uint16_t offset, uint16_t n) {
+void flash_write_sector(uint8_t const *src, flog_sector_idx_t sector, uint16_t offset, uint16_t n) {
     fslog_debug("flash_write_sector(%d/%d, %d, %d, %d)", open_block, open_page, sector, offset, n);
     sector = sector % FS_SECTORS_PER_PAGE;
     auto dst = mapped_sector_ptr(sector, offset);
     verified_memcpy(dst, src, n);
 }
 
-void flash_write_spare(uint8_t const *src, uint8_t sector) {
+void flash_write_spare(uint8_t const *src, flog_sector_idx_t sector) {
     fslog_debug("flash_write_spare(%d/%d, %d)", open_block, open_page, sector);
     sector = sector % FS_SECTORS_PER_PAGE;
     auto dst = mapped_sector_ptr(0, 0x804 + sector * 0x10);

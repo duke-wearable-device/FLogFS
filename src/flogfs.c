@@ -456,6 +456,8 @@ flog_result_t flog_prealloc_prime() {
 
     flash_high_level(FLOG_PRIME_BEGIN);
 
+    flash_debug_warn("Priming");
+
     for (uint8_t i = 0; i < FS_PREALLOCATE_SIZE; ++i) {
         block = flash_random(flogfs.params.number_of_blocks);
 
@@ -464,16 +466,20 @@ flog_result_t flog_prealloc_prime() {
         }
 
         if (flog_prealloc_contains(block)) {
+            flash_debug_warn("%d: Prealloc contains", block);
             continue;
         }
 
         if (FLOG_FAILURE == flash_open_page(block, 0)) {
+            flash_debug_warn("%d: Unable to open", block);
             continue;
         }
 
         if (FLOG_SUCCESS == flash_block_is_bad()) {
+            flash_debug_warn("%d: Bad block", block);
             continue;
         }
+
         flash_read_sector((uint8_t *)&stat_sector, FLOG_BLOCK_STAT_SECTOR, 0, sizeof(stat_sector));
         flash_read_spare((uint8_t *)&inode_spare, FLOG_INIT_SECTOR);
         flog_close_sector();
@@ -506,6 +512,7 @@ flog_result_t flog_prealloc_prime() {
                 break;
             }
             default: {
+                flash_debug_warn("%d: Bad type (%d)", block, inode_spare.type_id);
                 break;
             }
             }
@@ -602,7 +609,9 @@ flog_result_t flogfs_mount() {
 
     flog_prealloc_initialize();
 
-    flog_prealloc_prime();
+    if (!flog_prealloc_prime()) {
+        goto failure;
+    }
 
     flogfs.state = FLOG_STATE_MOUNTED;
 
@@ -1748,7 +1757,7 @@ static void flog_prealloc_block_remove_pending(flog_block_idx_t block_number) {
         assert(iter != iter->next);
 
         if (iter->block == block_number) {
-            // printf("Pending->Free: block=%d\n", block_number);
+            flash_debug_warn("Pending->Free: block=%d", block_number);
 
             iter->block = FLOG_BLOCK_IDX_INVALID;
             iter->age = FLOG_BLOCK_AGE_INVALID;
@@ -1787,11 +1796,15 @@ static void flog_prealloc_push(flog_block_idx_t block, flog_block_age_t age) {
 
     flogfs.prealloc.available = flog_prealloc_block_append(flogfs.prealloc.available, entry);
 
-    // printf("Free->Available: block=%d size=%d\n", entry->block, flogfs.prealloc.n);
+    assert(flogfs.prealloc.available != NULL);
+
+    flash_debug_warn("Free->Available: block=%d size=%d", entry->block, flogfs.prealloc.n);
 }
 
 static flog_block_alloc_t flog_prealloc_pop(int32_t threshold) {
     flog_block_alloc_t *entry;
+
+    flash_debug_warn("Pop");
 
     assert(flogfs.prealloc.available != NULL);
 
@@ -1800,7 +1813,7 @@ static flog_block_alloc_t flog_prealloc_pop(int32_t threshold) {
 
     flogfs.prealloc.n -= 1;
     flogfs.prealloc.pending = flog_prealloc_block_append(flogfs.prealloc.pending, entry);
-    // printf("Available->Pending: block=%d\n", entry->block);
+    flash_debug_warn("Available->Pending: block=%d", entry->block);
 
     return *entry;
 }

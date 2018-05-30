@@ -79,7 +79,7 @@ typedef enum {
     FLOG_FORMAT_END
 } flog_high_level_event_t;
 
-#ifdef FLOG_ERASE_ZERO
+#ifdef FLOGFS_ERASE_ZERO
 constexpr uint8_t FS_ERASE_CHAR = 0x00;
 #else
 constexpr uint8_t FS_ERASE_CHAR = 0xff;
@@ -91,7 +91,7 @@ constexpr uint8_t FS_ERASE_CHAR = 0xff;
  Those values not present represent an error
  */
 typedef enum {
-    #ifdef FLOG_ERASE_ZERO
+    #ifdef FLOGFS_ERASE_ZERO
     FLOG_BLOCK_TYPE_ERROR = 0xff,
     FLOG_BLOCK_TYPE_UNALLOCATED = 0,
     #else
@@ -104,7 +104,7 @@ typedef enum {
 
 //! @name Invalid values
 //! @{
-#ifdef FLOG_ERASE_ZERO
+#ifdef FLOGFS_ERASE_ZERO
 #define FLOG_BLOCK_IDX_ERASED 0x00
 #define FLOG_BLOCK_AGE_ERASED 0x00
 #define FLOG_FILE_ID_ERASED 0x00

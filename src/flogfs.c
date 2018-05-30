@@ -458,7 +458,7 @@ flog_result_t flog_prealloc_prime() {
 
     flash_debug_warn("Priming");
 
-    for (uint8_t i = 0; i < FS_PREALLOCATE_SIZE; ++i) {
+    while (!flog_prealloc_is_full()) {
         block = flash_random(flogfs.params.number_of_blocks);
 
         if (block == 0) {
@@ -499,16 +499,12 @@ flog_result_t flog_prealloc_prime() {
             flash_write_sector((uint8_t *)&stat_sector, FLOG_BLOCK_STAT_SECTOR, 0, sizeof(stat_sector));
             flash_commit();
 
-            if (!flog_prealloc_is_full()) {
-                flog_prealloc_push(block, stat_sector.header.age);
-            }
+            flog_prealloc_push(block, stat_sector.header.age);
         }
         else {
             switch (inode_spare.type_id) {
             case FLOG_BLOCK_TYPE_UNALLOCATED: {
-                if (!flog_prealloc_is_full()) {
-                    flog_prealloc_push(block, stat_sector.header.age);
-                }
+                flog_prealloc_push(block, stat_sector.header.age);
                 break;
             }
             default: {
@@ -2046,10 +2042,10 @@ static flog_block_alloc_t flog_allocate_block(int32_t threshold) {
 
     for (flog_block_idx_t i = flogfs.params.number_of_blocks; i; i--) {
         block = flog_prealloc_pop(threshold);
+        if (flog_prealloc_is_empty()) {
+            flog_prealloc_prime();
+        }
         if (block.block != FLOG_BLOCK_IDX_INVALID) {
-            if (flog_prealloc_is_empty()) {
-                flog_prealloc_prime();
-            }
             return block;
         }
 

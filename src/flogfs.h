@@ -284,6 +284,52 @@ uint_fast8_t flogfs_ls_iterate(flogfs_ls_iterator_t *iter, char *fname_dst);
  */
 void flogfs_stop_ls(flogfs_ls_iterator_t *iter);
 
+typedef struct flogfs_walk_inode_block_state_t {
+    flog_sector_idx_t sector;
+    uint_fast8_t valid;
+    flog_file_id_t file_id;
+    char file_name[FLOG_MAX_FNAME_LEN];
+    flog_block_idx_t first_block;
+    flog_timestamp_t created_at;
+    uint_fast8_t deleted;
+    flog_timestamp_t deleted_at;
+    flog_block_idx_t last_block;
+} flogfs_walk_inode_block_state_t;
+
+typedef struct flogfs_walk_file_block_state_t {
+    flog_sector_idx_t sector;
+    uint_fast8_t valid;
+    flog_file_id_t file_id;
+    uint16_t size;
+} flogfs_walk_file_block_state_t;
+
+/*!
+ *
+ */
+typedef struct flogfs_walk_state_t {
+    flog_block_idx_t block;
+    uint_fast8_t valid_block;
+    flog_block_idx_t next_block;
+    flog_block_age_t age;
+    uint8_t type_id;
+    flog_file_id_t file_id;
+    uint32_t bytes_in_block;
+    union {
+        flogfs_walk_inode_block_state_t inode;
+        flogfs_walk_file_block_state_t file;
+    } types;
+} flogfs_walk_state_t;
+
+/*!
+ *
+ */
+typedef flog_result_t (*file_walk_fn_t)(flogfs_walk_state_t *state, void *arg);
+
+/*!
+ *
+ */
+flog_result_t flog_walk(file_walk_fn_t walk_fn, void *arg);
+
 #if !FLOG_BUILD_CPP
 #ifdef __cplusplus
 }

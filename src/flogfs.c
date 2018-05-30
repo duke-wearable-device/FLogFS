@@ -1550,6 +1550,131 @@ flog_result_t flog_commit_file_sector(flog_write_file_t *file, uint8_t const *da
     }
 }
 
+flog_result_t flog_walk(file_walk_fn_t walk_fn, void *arg) {
+    flog_block_stat_sector_with_key_t block_sector;
+    flog_inode_init_sector_spare_t inode_spare;
+
+    union {
+        flog_file_init_sector_header_t file;
+    } init_sector;
+
+    union {
+        flog_universal_tail_sector_t universal;
+        flog_file_tail_sector_header_t file;
+    } tail_sector;
+
+    flogfs_walk_state_t state;
+
+    flog_lock_fs();
+    flash_lock();
+
+    for (state.block = 0; state.block < flogfs.params.number_of_blocks; ++state.block) {
+        flash_open_page(state.block, 0);
+
+        flash_read_sector((uint8_t *)&block_sector, FLOG_BLOCK_STAT_SECTOR, 0, sizeof(block_sector));
+
+        flash_read_spare((uint8_t *)&inode_spare, FLOG_INIT_SECTOR);
+
+        state.valid_block = !invalid_block_stat_sector_with_key(&block_sector);
+
+        if (state.valid_block) {
+            flog_open_sector(state.block, FLOG_INIT_SECTOR);
+            flash_read_sector((uint8_t *)&init_sector, FLOG_INIT_SECTOR, 0, sizeof(init_sector));
+            flog_close_sector();
+
+            flog_open_sector(state.block, FLOG_TAIL_SECTOR);
+            flash_read_sector((uint8_t *)&tail_sector, FLOG_TAIL_SECTOR, 0, sizeof(tail_sector));
+            flog_close_sector();
+
+            state.next_block = tail_sector.universal.next_block;
+            state.age = block_sector.header.age;
+            state.type_id = inode_spare.type_id;
+            state.file_id = init_sector.file.file_id;
+            state.bytes_in_block = tail_sector.file.bytes_in_block;
+
+            walk_fn(&state, arg);
+
+            switch (state.type_id) {
+            case FLOG_BLOCK_TYPE_INODE: {
+                flogfs_walk_inode_block_state_t *inode = &state.types.inode;
+                flog_inode_file_allocation_t allocation;
+                flog_inode_file_invalidation_t invalidation;
+
+                inode->sector = FLOG_INODE_FIRST_ENTRY_SECTOR;
+
+                while (inode->sector < flogfs.params.pages_per_block * FS_SECTORS_PER_PAGE) {
+                    inode->valid = false;
+                    inode->file_name[0] = 0;
+                    inode->file_id = FLOG_FILE_ID_INVALID;
+                    inode->first_block = FLOG_BLOCK_IDX_INVALID;
+                    inode->last_block = FLOG_BLOCK_IDX_INVALID;
+                    inode->created_at = FLOG_TIMESTAMP_ERASED;
+                    inode->deleted_at = FLOG_TIMESTAMP_ERASED;
+
+                    flog_open_sector(state.block, inode->sector);
+                    flash_read_sector((uint8_t *)&allocation, inode->sector, 0, sizeof(flog_inode_file_allocation_t));
+                    flog_close_sector();
+
+                    state.types.inode.valid = !invalid_inode_file_allocation_header(&allocation.header);
+                    if (inode->valid) {
+                        flog_open_sector(state.block, inode->sector + 1);
+                        flash_read_sector((uint8_t *)&invalidation, inode->sector + 1, 0, sizeof(flog_inode_file_invalidation_t));
+                        flog_close_sector();
+
+                        strcpy(inode->file_name, allocation.filename);
+                        inode->file_id = allocation.header.file_id;
+                        inode->first_block = allocation.header.first_block;
+                        inode->created_at = allocation.header.timestamp;
+
+                        inode->deleted = !invalid_inode_file_invalidation(&invalidation);
+                        inode->last_block = invalidation.header.last_block;
+                        inode->deleted_at = invalidation.header.timestamp;
+                    }
+
+                    walk_fn(&state, arg);
+
+                    inode->sector += 2;
+                }
+                break;
+            }
+            case FLOG_BLOCK_TYPE_FILE: {
+                flogfs_walk_file_block_state_t *fb = &state.types.file;
+                flog_file_sector_spare_t file_sector_spare;
+
+                fb->sector = FLOG_INIT_SECTOR;
+
+                while (true) {
+                    flog_open_sector(state.block, fb->sector);
+                    flash_read_spare((uint8_t *)&file_sector_spare, fb->sector);
+                    flog_close_sector();
+
+                    fb->valid = !invalid_sector_spare(&file_sector_spare);
+                    fb->file_id = init_sector.file.file_id;
+                    fb->size = file_sector_spare.nbytes;
+
+                    walk_fn(&state, arg);
+
+                    if (fb->sector == FLOG_TAIL_SECTOR) {
+                        break;
+                    }
+
+                    fb->sector = flog_increment_sector(fb->sector);
+                }
+                break;
+            }
+            }
+        }
+        else {
+            walk_fn(&state, arg);
+        }
+    }
+
+    flog_unlock_fs();
+    flash_unlock();
+
+    return FLOG_SUCCESS;
+}
+
 static flog_result_t flog_flush_write(flog_write_file_t *file) {
     flog_result_t fr = flog_commit_file_sector(file, 0, 0);
     if (!fr) {

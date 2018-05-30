@@ -1,5 +1,6 @@
 #include <iostream>
 #include <sstream>
+#include <ctime>
 
 #include <flogfs.h>
 #include <flogfs_linux_mmap.h>
@@ -126,6 +127,15 @@ int32_t Analysis::number_of_inode_blocks() const {
 
 int32_t Analysis::number_of_file_blocks() const {
     return number_of_blocks(FLOG_BLOCK_TYPE_FILE);
+}
+
+int32_t Analysis::number_of_files() const {
+    int32_t n = 0;
+
+    for (auto &b : blocks_) {
+    }
+
+    return n;
 }
 
 inline void append(std::ostream& os, std::vector<std::string> &strings, const char *delimitter) {
@@ -255,6 +265,7 @@ std::ostream& operator<<(std::ostream& os, const BlockAnalysis& ba) {
         }
     }
     os << ">";
+
     return os;
 }
 
@@ -294,13 +305,45 @@ static flog_result_t analysis_callback(flogfs_walk_state_t *state, void *arg) {
 Analysis analyze_file_system() {
     Analysis analysis;
 
+    auto begin = std::clock();
+
     EXPECT_TRUE(flog_walk(analysis_callback, &analysis));
 
-    for (auto &b : analysis.blocks()) {
-        std::cout << b << std::endl;
-    }
+    auto end = std::clock();
+    auto elapsed = double(end - begin) / CLOCKS_PER_SEC * 1000.0;
 
-    std::cout << analysis << std::endl;
+    std::cout << "Analysis done in " << elapsed << "ms" << std::endl;
 
     return analysis;
+}
+
+bool Analysis::verify() {
+    for (auto &inodes = blocks_[0]; ; ) {
+        std::cout << inodes << std::endl;
+
+        EXPECT_TRUE(inodes.is_inode());
+
+        auto files = inodes.file_entries();
+        for (auto &f : files) {
+            for (auto &data = blocks_[f.first_block]; ; ) {
+                EXPECT_TRUE(data.is_file());
+
+                std::cout << data << std::endl;
+
+                if (!data.has_more()) {
+                    break;
+                }
+
+                data = blocks_[data.next_block];
+            }
+        }
+
+        if (!inodes.has_more()) {
+            break;
+        }
+
+        inodes = blocks_[inodes.next_block];
+    }
+
+    return true;
 }

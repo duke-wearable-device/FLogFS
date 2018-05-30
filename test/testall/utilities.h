@@ -55,9 +55,30 @@ struct BlockAnalysis {
     uint8_t type_id;
     flog_file_id_t file_id;
     uint32_t bytes_in_block;
-
     std::vector<INodeSector> inodes;
     std::vector<FileSector> files;
+
+    bool is_file() {
+        return type_id == FLOG_BLOCK_TYPE_FILE;
+    }
+
+    bool is_inode() {
+        return type_id == FLOG_BLOCK_TYPE_INODE;
+    }
+
+    bool has_more() {
+        return next_block != FLOG_BLOCK_IDX_INVALID;
+    }
+
+    std::vector<INodeSector> file_entries() {
+        std::vector<INodeSector> f;
+        for (auto &in : inodes) {
+            if (in.valid && !in.deleted) {
+                f.push_back(in);
+            }
+        }
+        return f;
+    }
 
     BlockAnalysis(flogfs_walk_state_t *state) :
         block(state->block), valid_block(state->valid_block), next_block(state->next_block),
@@ -69,10 +90,10 @@ struct BlockAnalysis {
 
 class Analysis {
 private:
-    std::list<BlockAnalysis> blocks_;
+    std::vector<BlockAnalysis> blocks_;
 
 public:
-    std::list<BlockAnalysis> &blocks() {
+    std::vector<BlockAnalysis> &blocks() {
         return blocks_;
     }
 
@@ -80,10 +101,18 @@ public:
 
     friend std::ostream& operator<<(std::ostream& os, const Analysis& e);
 
+    BlockAnalysis &operator[](int32_t index) {
+        return blocks_[index];
+    }
+
+public:
+    bool verify();
+
 public:
     int32_t number_of_blocks(uint8_t type) const;
     int32_t number_of_inode_blocks() const;
     int32_t number_of_file_blocks() const;
+    int32_t number_of_files() const;
 
 };
 

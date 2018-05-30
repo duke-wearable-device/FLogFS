@@ -519,6 +519,8 @@ flog_result_t flog_prealloc_prime() {
         }
     }
 
+    assert(!flog_prealloc_is_empty());
+
     flash_high_level(FLOG_PRIME_END);
 
     flog_unlock_fs();

@@ -10,8 +10,8 @@ clean:
 	rm -rf $(BUILD)
 
 test: build
-	build/examples/linux-mmap/example-linux-mmap-00 --truncate
-	build/examples/linux-mmap/example-linux-mmap-ff --truncate
+	build/examples/linux-mmap/example-linux-mmap-00 --truncate flash-00.bin
+	build/examples/linux-mmap/example-linux-mmap-ff --truncate flash-ff.bin
 	cd build && make test ARGS=-VV
 
 .PHONY: build clean

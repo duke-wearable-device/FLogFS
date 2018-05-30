@@ -11,4 +11,4 @@ arduino(arduino-zero-flogfs "${SOURCE_FILES}" "${LIBRARIES}")
 
 add_definitions("-DFLOG_ERASE_ZERO")
 
-target_include_directories(arduino-zero-flogfs PUBLIC ./ ../../inc ../../backends/arduino-sd)
+target_include_directories(arduino-zero-flogfs PUBLIC ./ ../../src ../../backends/arduino-sd)

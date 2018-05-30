@@ -184,6 +184,9 @@ uint32_t flash_random() {
     return random();
 }
 
+void flash_high_level(flog_high_level_event_t hle) {
+}
+
 constexpr uint16_t DebugLineMax = 256;
 
 void flash_debug(const char *f, va_list args) {

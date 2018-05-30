@@ -72,6 +72,13 @@ either expressed or implied, of the FLogFS Project.
 
 typedef enum { FLOG_STATE_RESET, FLOG_STATE_MOUNTED } flog_state_t;
 
+typedef enum {
+    FLOG_PRIME_BEGIN,
+    FLOG_PRIME_END,
+    FLOG_FORMAT_BEGIN,
+    FLOG_FORMAT_END
+} flog_high_level_event_t;
+
 #ifdef FLOG_ERASE_ZERO
 constexpr uint8_t FS_ERASE_CHAR = 0x00;
 #else

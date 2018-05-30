@@ -2,6 +2,7 @@
 #define __FLOGFS_ARDUINO_SD_H_
 
 #include <flogfs.h>
+#include <flogfs_private.h>
 
 extern "C" {
 

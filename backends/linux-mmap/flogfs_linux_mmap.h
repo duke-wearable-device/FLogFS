@@ -13,7 +13,7 @@ flog_result_t flogfs_linux_open(const char *path, bool truncate, flog_initialize
 
 flog_result_t flogfs_linux_close();
 
-Log *flogfs_linux_get_log();
+Log &flogfs_linux_get_log();
 
 }
 

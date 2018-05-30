@@ -258,7 +258,5 @@ int32_t main(int argc, char *argv[]) {
 
     FLOG_CHECK(flogfs_linux_close());
 
-    std::cout << "Log size: " << flogfs_linux_get_log()->size() << std::endl;
-
     return 0;
 }

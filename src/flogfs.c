@@ -379,6 +379,8 @@ flog_result_t flogfs_format() {
     flash_lock();
     flog_lock_fs();
 
+    flash_high_level(FLOG_FORMAT_BEGIN);
+
     if (flogfs.state == FLOG_STATE_MOUNTED) {
         flogfs.state = FLOG_STATE_RESET;
     }
@@ -428,6 +430,8 @@ flog_result_t flogfs_format() {
 
     flash_commit();
 
+    flash_high_level(FLOG_FORMAT_END);
+
     flog_unlock_fs();
     flash_unlock();
     return FLOG_SUCCESS;
@@ -456,6 +460,8 @@ flog_result_t flog_prealloc_prime() {
 
     flog_lock_fs();
     flash_lock();
+
+    flash_high_level(FLOG_PRIME_BEGIN);
 
     for (uint8_t i = 0; i < FS_PREALLOCATE_SIZE; ++i) {
         block = flash_random() % flogfs.params.number_of_blocks;
@@ -513,11 +519,15 @@ flog_result_t flog_prealloc_prime() {
         }
     }
 
+    flash_high_level(FLOG_PRIME_END);
+
     flog_unlock_fs();
     flash_unlock();
     return FLOG_SUCCESS;
 
 failure:
+    flash_high_level(FLOG_PRIME_END);
+
     flog_unlock_fs();
     flash_unlock();
     return FLOG_FAILURE;

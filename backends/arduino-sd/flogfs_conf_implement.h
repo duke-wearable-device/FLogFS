@@ -41,4 +41,6 @@ void flash_debug_error(char const *f, ...);
 
 uint32_t flash_random();
 
+void flash_high_level(flog_high_level_event_t hle);
+
 #endif

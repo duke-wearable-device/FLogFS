@@ -60,8 +60,8 @@ flog_result_t flogfs_linux_open(const char *path, bool truncate, flog_initialize
     return FLOG_SUCCESS;
 }
 
-Log *flogfs_linux_get_log() {
-    return &log;
+Log &flogfs_linux_get_log() {
+    return log;
 }
 
 flog_result_t flogfs_linux_close() {
@@ -185,6 +185,21 @@ uint32_t flash_random() {
 }
 
 void flash_high_level(flog_high_level_event_t hle) {
+    switch (hle) {
+    case FLOG_PRIME_BEGIN:
+        log.append(LogEntry{ OperationType::PrimeBegin });
+        break;
+    case FLOG_PRIME_END:
+        log.append(LogEntry{ OperationType::PrimeEnd });
+        break;
+    case FLOG_FORMAT_BEGIN:
+        log.append(LogEntry{ OperationType::FormatBegin });
+        break;
+    case FLOG_FORMAT_END: {
+        log.append(LogEntry{ OperationType::FormatEnd });
+        break;
+    }
+    }
 }
 
 constexpr uint16_t DebugLineMax = 256;

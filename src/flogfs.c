@@ -284,25 +284,17 @@ static void flog_flush_dirty_block();
 
 static flog_result_t flog_commit_file_sector(flog_write_file_t *file, uint8_t const *data, flog_sector_nbytes_t n);
 
-static void flog_get_file_init_sector(flog_block_idx_t block, flog_file_init_sector_header_t *header);
-
-static void flog_get_universal_tail_sector(flog_block_idx_t block, flog_universal_tail_sector_t *header);
-
 static flog_block_type_t flog_get_block_type(flog_block_idx_t block);
 
-static void flog_write_block_stat(flog_block_idx_t block, flog_block_stat_sector_t const *stat);
+static void flog_write_block_stat(flog_block_idx_t block, flog_block_stat_sector_header_t const *stat);
 
-static void flog_get_block_stat(flog_block_idx_t block, flog_block_stat_sector_t *stat);
+static void flog_get_block_stat(flog_block_idx_t block, flog_block_stat_sector_header_t *stat);
 
 static uint_fast8_t invalid_sector_spare(flog_file_sector_spare_t *spare) {
     return spare->type_id == FLOG_SECTOR_TYPE_ID_ERASED && spare->nbytes == FLOG_SECTOR_NBYTES_ERASED;
 }
 
-static uint_fast8_t invalid_universal_tail_sector(flog_universal_tail_sector_t *tail_sector) {
-    return tail_sector->timestamp == FLOG_TIMESTAMP_ERASED;
-}
-
-static uint_fast8_t invalid_universal_invalidation_header(flog_universal_invalidation_header_t *header) {
+static uint_fast8_t invalid_universal_invalidation_header(flog_inode_file_invalidation_header_t *header) {
     return header->timestamp != FLOG_TIMESTAMP_ERASED;
 }
 
@@ -311,11 +303,11 @@ static uint_fast8_t invalid_inode_file_allocation_header(flog_inode_file_allocat
 }
 
 static uint_fast8_t invalid_inode_file_invalidation(flog_inode_file_invalidation_t *invalidation) {
-    return invalidation->timestamp == FLOG_TIMESTAMP_ERASED;
+    return invalidation->header.timestamp == FLOG_TIMESTAMP_ERASED;
 }
 
 static uint_fast8_t invalid_file_tail_sector_header(flog_file_tail_sector_header_t *header) {
-    return header->timestamp == FLOG_TIMESTAMP_ERASED;
+    return header->universal.timestamp == FLOG_TIMESTAMP_ERASED;
 }
 
 static uint_fast8_t invalid_block_index(flog_block_idx_t idx) {
@@ -333,11 +325,6 @@ static uint_fast8_t invalid_timestamp(flog_timestamp_t timestamp) {
 static uint_fast8_t is_file_init_sector_header_for_file(flog_file_init_sector_header_t *header, flog_file_id_t file_id) {
     return (file_id != FLOG_FILE_ID_ERASED) && (header->file_id == file_id);
 }
-
-typedef struct flog_block_stat_sector_with_key_t {
-    flog_block_stat_sector_t stat;
-    char key[sizeof(flog_block_stat_key)];
-} flog_block_stat_sector_with_key_t;
 
 static uint_fast8_t invalid_block_stat_sector_with_key(flog_block_stat_sector_with_key_t *header) {
     return memcmp(header->key, flog_block_stat_key, sizeof(flog_block_stat_key)) != 0;
@@ -390,14 +377,14 @@ flog_result_t flogfs_format() {
         if (FLOG_SUCCESS == flash_block_is_bad()) {
             continue;
         }
-        flash_read_sector((uint8_t *)&stat_sector, FLOG_BLK_STAT_SECTOR, 0, sizeof(stat_sector));
+        flash_read_sector((uint8_t *)&stat_sector, FLOG_BLOCK_STAT_SECTOR, 0, sizeof(stat_sector));
         if (invalid_block_stat_sector_with_key(&stat_sector)) {
-            stat_sector.stat.age = 0;
+            stat_sector.header.age = 0;
             memcpy(stat_sector.key, flog_block_stat_key, sizeof(flog_block_stat_key));
         }
-        stat_sector.stat.next_block = FLOG_BLOCK_IDX_INVALID;
-        stat_sector.stat.next_age = FLOG_BLOCK_AGE_INVALID;
-        stat_sector.stat.timestamp = 0;
+        stat_sector.header.next_block = FLOG_BLOCK_IDX_INVALID;
+        stat_sector.header.next_age = FLOG_BLOCK_AGE_INVALID;
+        stat_sector.header.timestamp = 0;
         flog_close_sector();
 
         if (FLOG_FAILURE == flash_erase_block(block)) {
@@ -407,8 +394,8 @@ flog_result_t flogfs_format() {
             return FLOG_FAILURE;
         }
 
-        flog_open_sector(block, FLOG_BLK_STAT_SECTOR);
-        flash_write_sector((uint8_t *)&stat_sector, FLOG_BLK_STAT_SECTOR, 0, sizeof(stat_sector));
+        flog_open_sector(block, FLOG_BLOCK_STAT_SECTOR);
+        flash_write_sector((uint8_t *)&stat_sector, FLOG_BLOCK_STAT_SECTOR, 0, sizeof(stat_sector));
         flash_commit();
         if (first_valid == FLOG_BLOCK_IDX_INVALID) {
             first_valid = block;
@@ -420,7 +407,7 @@ flog_result_t flogfs_format() {
 
     flog_open_sector(first_valid, FLOG_INIT_SECTOR);
 
-    buffer_union.main_buffer.timestamp = 0;
+    buffer_union.main_buffer.universal.timestamp = 0;
     buffer_union.main_buffer.previous = FLOG_BLOCK_IDX_INVALID;
     flash_write_sector((const uint8_t *)&buffer_union.main_buffer, FLOG_INIT_SECTOR, 0, sizeof(buffer_union.main_buffer));
 
@@ -481,34 +468,34 @@ flog_result_t flog_prealloc_prime() {
         if (FLOG_SUCCESS == flash_block_is_bad()) {
             continue;
         }
-        flash_read_sector((uint8_t *)&stat_sector, FLOG_BLK_STAT_SECTOR, 0, sizeof(stat_sector));
+        flash_read_sector((uint8_t *)&stat_sector, FLOG_BLOCK_STAT_SECTOR, 0, sizeof(stat_sector));
         flash_read_spare((uint8_t *)&inode_spare, FLOG_INIT_SECTOR);
         flog_close_sector();
 
         if (invalid_block_stat_sector_with_key(&stat_sector)) {
-            stat_sector.stat.age = 0;
-            stat_sector.stat.next_block = FLOG_BLOCK_IDX_INVALID;
-            stat_sector.stat.next_age = FLOG_BLOCK_AGE_INVALID;
-            stat_sector.stat.timestamp = 0;
+            stat_sector.header.age = 0;
+            stat_sector.header.next_block = FLOG_BLOCK_IDX_INVALID;
+            stat_sector.header.next_age = FLOG_BLOCK_AGE_INVALID;
+            stat_sector.header.timestamp = 0;
             memcpy(stat_sector.key, flog_block_stat_key, sizeof(flog_block_stat_key));
 
             if (FLOG_FAILURE == flash_erase_block(block)) {
                 goto failure;
             }
 
-            flog_open_sector(block, FLOG_BLK_STAT_SECTOR);
-            flash_write_sector((uint8_t *)&stat_sector, FLOG_BLK_STAT_SECTOR, 0, sizeof(stat_sector));
+            flog_open_sector(block, FLOG_BLOCK_STAT_SECTOR);
+            flash_write_sector((uint8_t *)&stat_sector, FLOG_BLOCK_STAT_SECTOR, 0, sizeof(stat_sector));
             flash_commit();
 
             if (!flog_prealloc_is_full()) {
-                flog_prealloc_push(block, stat_sector.stat.age);
+                flog_prealloc_push(block, stat_sector.header.age);
             }
         }
         else {
             switch (inode_spare.type_id) {
             case FLOG_BLOCK_TYPE_UNALLOCATED: {
                 if (!flog_prealloc_is_full()) {
-                    flog_prealloc_push(block, stat_sector.stat.age);
+                    flog_prealloc_push(block, stat_sector.header.age);
                 }
                 break;
             }
@@ -651,8 +638,8 @@ flog_result_t flogfs_fsck() {
     union {
         flog_file_tail_sector_header_t file_tail_sector_header;
         flog_inode_file_allocation_header_t allocation;
-        flog_universal_invalidation_header_t universal_invalidation_header;
-        flog_block_stat_sector_t stat_sector;
+        flog_inode_file_invalidation_header_t invalidation;
+        flog_block_stat_sector_header_t stat_sector;
     } sector_buffer_union;
 
     union {
@@ -697,11 +684,11 @@ flog_result_t flogfs_fsck() {
             }
         }
         else {
-            if (init_buffer_union.invalidation.timestamp > last_deletion.timestamp) {
+            if (init_buffer_union.invalidation.header.timestamp > last_deletion.timestamp) {
                 last_deletion.first_block = sector_buffer_union.allocation.first_block;
-                last_deletion.last_block = init_buffer_union.invalidation.last_block;
+                last_deletion.last_block = init_buffer_union.invalidation.header.last_block;
                 last_deletion.file_id = sector_buffer_union.allocation.file_id;
-                last_deletion.timestamp = init_buffer_union.invalidation.timestamp;
+                last_deletion.timestamp = init_buffer_union.invalidation.header.timestamp;
             }
         }
     }
@@ -714,7 +701,7 @@ flog_result_t flogfs_fsck() {
             if (init_buffer_union.file_init_sector_header.file_id != last_allocation.file_id) {
                 // This block never got claimed, initialize it!
                 flog_open_sector(last_allocation.block, FLOG_INIT_SECTOR);
-                init_buffer_union.file_init_sector_header.timestamp = last_allocation.timestamp;
+                init_buffer_union.file_init_sector_header.universal.timestamp = last_allocation.timestamp;
                 init_buffer_union.file_init_sector_header.age = last_allocation.age;
                 init_buffer_union.file_init_sector_header.file_id = last_allocation.file_id;
                 flash_write_sector((uint8_t *)&init_buffer_union.file_init_sector_header, FLOG_INIT_SECTOR, 0, sizeof(flog_file_init_sector_header_t));
@@ -737,8 +724,8 @@ flog_result_t flogfs_fsck() {
             // Well, it seems the allocation was incomplete
             flog_open_sector(last_allocation.previous_inode, FLOG_INIT_SECTOR);
             flash_read_spare((uint8_t *)&inode_init_spare, FLOG_INIT_SECTOR);
+            inode_init.universal.timestamp = last_allocation.timestamp;
             inode_init.previous = last_allocation.previous_inode;
-            inode_init.timestamp = last_allocation.timestamp;
             inode_init_spare.inode_index += 1;
             // Other fields should be valid...
             flog_open_sector(last_allocation.block, FLOG_INIT_SECTOR);
@@ -757,9 +744,9 @@ flog_result_t flogfs_fsck() {
         flash_read_sector((uint8_t *)&init_buffer_union.file_init_sector_header, FLOG_INIT_SECTOR, 0, sizeof(flog_file_init_sector_header_t));
         if (init_buffer_union.file_init_sector_header.file_id == last_deletion.file_id) {
             // This is the same file still, see if it's been invalidated
-            flog_open_sector(last_deletion.last_block, FLOG_BLK_STAT_SECTOR);
-            flash_read_sector((uint8_t *)&sector_buffer_union.universal_invalidation_header, FLOG_BLK_STAT_SECTOR, 0, sizeof(flog_universal_invalidation_header_t));
-            if (invalid_universal_invalidation_header(&sector_buffer_union.universal_invalidation_header)) {
+            flog_open_sector(last_deletion.last_block, FLOG_BLOCK_STAT_SECTOR);
+            flash_read_sector((uint8_t *)&sector_buffer_union.invalidation, FLOG_BLOCK_STAT_SECTOR, 0, sizeof(flog_inode_file_invalidation_header_t));
+            if (invalid_universal_invalidation_header(&sector_buffer_union.invalidation)) {
                 // Crap, this never got invalidated correctly
                 flog_invalidate_chain(last_deletion.first_block, last_deletion.file_id);
             }
@@ -901,7 +888,7 @@ uint32_t flogfs_read(flog_read_file_t *file, uint8_t *dst, uint32_t nbytes) {
                 // This was the last sector in the block, check the next
                 flog_open_sector(file->block, FLOG_TAIL_SECTOR);
                 flash_read_sector((uint8_t *)&buffer_union.file_tail_sector_header, FLOG_TAIL_SECTOR, 0, sizeof(flog_file_tail_sector_header_t));
-                block = buffer_union.file_tail_sector_header.next_block;
+                block = buffer_union.file_tail_sector_header.universal.next_block;
                 // Now check out that new block and make sure it's legit
                 flog_open_sector(block, FLOG_INIT_SECTOR);
                 flash_read_sector((uint8_t *)&buffer_union.file_init_sector_header, FLOG_INIT_SECTOR, 0, sizeof(flog_file_init_sector_header_t));
@@ -1017,24 +1004,24 @@ uint32_t flogfs_write_file_size(flog_write_file_t *file) {
     return file->file_size;
 }
 
-typedef struct flogfs_walk_state_t {
+typedef struct flogfs_walk_file_state_t {
     flog_block_idx_t block;
     flog_sector_idx_t sector;
     uint_fast8_t last_block;
     flog_file_tail_sector_header_t *tail_header;
     flog_file_sector_spare_t *sector_spare;
-} flogfs_walk_state_t;
+} flogfs_walk_file_state_t;
 
 typedef enum {
     FLOG_WALK_FAILURE,
     FLOG_WALK_CONTINUE,
     FLOG_WALK_STOP,
     FLOG_WALK_SKIP_BLOCK,
-} flog_read_walk_result_t;
+} flog_read_walk_file_result_t;
 
-typedef flog_read_walk_result_t (*file_walk_fn_t)(flogfs_walk_state_t *state, void *arg);
+typedef flog_read_walk_file_result_t (*file_walk_file_fn_t)(flogfs_walk_file_state_t *state, void *arg);
 
-static flog_read_walk_result_t flogfs_read_walk_sectors(flog_read_file_t *file, flogfs_walk_state_t *state, file_walk_fn_t walk, void *arg) {
+static flog_read_walk_file_result_t flogfs_read_walk_sectors(flog_read_file_t *file, flogfs_walk_file_state_t *state, file_walk_file_fn_t walk, void *arg) {
     flog_file_sector_spare_t file_sector_spare;
 
     state->sector = FLOG_INIT_SECTOR;
@@ -1076,9 +1063,9 @@ static flog_read_walk_result_t flogfs_read_walk_sectors(flog_read_file_t *file, 
     return FLOG_WALK_CONTINUE;
 }
 
-static flog_result_t flogfs_read_walk_file(flog_read_file_t *file, file_walk_fn_t walk, void *arg) {
+static flog_result_t flogfs_read_walk_file(flog_read_file_t *file, file_walk_file_fn_t walk, void *arg) {
     flog_file_tail_sector_header_t tail_header;
-    flogfs_walk_state_t state;
+    flogfs_walk_file_state_t state;
     state.block = file->first_block;
     state.tail_header = &tail_header;
 
@@ -1123,16 +1110,16 @@ static flog_result_t flogfs_read_walk_file(flog_read_file_t *file, file_walk_fn_
             break;
         }
 
-        if (state.block == tail_header.next_block) {
+        if (state.block == tail_header.universal.next_block) {
             return FLOG_FAILURE;
         }
-        state.block = tail_header.next_block;
+        state.block = tail_header.universal.next_block;
     }
 
     return FLOG_SUCCESS;
 }
 
-flog_read_walk_result_t file_size_calculator_walk(flogfs_walk_state_t *state, void *arg) {
+flog_read_walk_file_result_t file_size_calculator_walk(flogfs_walk_file_state_t *state, void *arg) {
     if (state->sector_spare != nullptr) {
         *((uint32_t *)arg) += state->sector_spare->nbytes;
     }
@@ -1160,7 +1147,7 @@ typedef struct file_seek_t {
     uint16_t bytes_remaining;
 } file_seek_t;
 
-flog_read_walk_result_t file_seek_walk(flogfs_walk_state_t *state, void *arg) {
+flog_read_walk_file_result_t file_seek_walk(flogfs_walk_file_state_t *state, void *arg) {
     file_seek_t *seek = (file_seek_t *)arg;
 
     seek->block = state->block;
@@ -1252,7 +1239,7 @@ flog_result_t flogfs_open_write(flog_write_file_t *file, char const *filename) {
                 // This block is incomplete
                 break;
             }
-            file->block = buffer_union.file_tail_sector_header.next_block;
+            file->block = buffer_union.file_tail_sector_header.universal.next_block;
             file->file_size += buffer_union.file_tail_sector_header.bytes_in_block;
         }
         // Now file->block is the first incomplete block
@@ -1406,8 +1393,8 @@ flog_result_t flogfs_rm(char const *filename) {
         block = next_block;
     }
 
-    invalidation.last_block = block;
-    invalidation.timestamp = ++flogfs.t;
+    invalidation.header.last_block = block;
+    invalidation.header.timestamp = ++flogfs.t;
     flog_open_sector(inode_iter.block, inode_iter.sector + 1);
     flash_write_sector((uint8_t *)&invalidation, inode_iter.sector + 1, 0, sizeof(flog_inode_file_invalidation_t));
     flash_commit();
@@ -1436,15 +1423,15 @@ uint_fast8_t flogfs_ls_iterate(flogfs_ls_iterator_t *iter, char *fname_dst) {
 
     while (1) {
         flog_open_sector(iter->block, iter->sector);
-        flash_read_sector((uint8_t *)&buffer_union.allocation, iter->sector, 0, sizeof(flog_file_id_t));
+        flash_read_sector((uint8_t *)&buffer_union.allocation, iter->sector, 0, sizeof(flog_inode_file_allocation_header_t));
         if (invalid_file_id(buffer_union.allocation.file_id)) {
             // Nothing here. Done.
             return 0;
         }
         // Now check to see if it's valid
         flog_open_sector(iter->block, iter->sector + 1);
-        flash_read_sector((uint8_t *)&buffer_union.invalidation, iter->sector + 1, 0, sizeof(flog_timestamp_t));
-        if (invalid_timestamp(buffer_union.invalidation.timestamp)) {
+        flash_read_sector((uint8_t *)&buffer_union.invalidation, iter->sector + 1, 0, sizeof(flog_inode_file_invalidation_t));
+        if (invalid_timestamp(buffer_union.invalidation.header.timestamp)) {
             // This file's good
             // Now check to see if it's valid
             // Go read the filename
@@ -1490,9 +1477,9 @@ flog_result_t flog_commit_file_sector(flog_write_file_t *file, uint8_t const *da
         // memzero(file_tail_sector_header, sizeof(flog_file_tail_sector_header_t)); // Optional
         file->bytes_in_block += n; // Not bytes_in_sector, this is updated on in memory/non-flushed writes.
         file_sector_spare.nbytes = bytes_in_sector;
-        file_tail_sector_header->next_age = next_block.age + 1;
-        file_tail_sector_header->next_block = next_block.block;
-        file_tail_sector_header->timestamp = ++flogfs.t;
+        file_tail_sector_header->universal.next_age = next_block.age + 1;
+        file_tail_sector_header->universal.next_block = next_block.block;
+        file_tail_sector_header->universal.timestamp = ++flogfs.t;
         file_tail_sector_header->bytes_in_block = file->bytes_in_block;
 
         flog_open_sector(file->block, FLOG_TAIL_SECTOR);
@@ -1808,7 +1795,7 @@ static flog_result_t flog_inode_prepare_new(flog_inode_iterator_t *iter) {
         flash_commit();
 
         flog_open_sector(block_alloc.block, FLOG_INIT_SECTOR);
-        buffer_union.inode_init_sector.timestamp = flogfs.t;
+        buffer_union.inode_init_sector.universal.timestamp = flogfs.t;
         flash_write_sector((uint8_t *)&buffer_union.inode_init_sector, FLOG_INIT_SECTOR, 0, sizeof(flog_inode_init_sector_t));
 
         buffer_union.inode_init_sector_spare.type_id = FLOG_BLOCK_TYPE_INODE;
@@ -1823,24 +1810,23 @@ static flog_result_t flog_inode_prepare_new(flog_inode_iterator_t *iter) {
     return FLOG_SUCCESS;
 }
 
-static void flog_write_block_stat(flog_block_idx_t block, flog_block_stat_sector_t const *stat) {
-    flog_open_sector(block, FLOG_BLK_STAT_SECTOR);
-    flash_write_sector((uint8_t const *)stat, FLOG_BLK_STAT_SECTOR, 0, sizeof(flog_block_stat_sector_t));
+static void flog_write_block_stat(flog_block_idx_t block, flog_block_stat_sector_header_t const *stat) {
+    flog_open_sector(block, FLOG_BLOCK_STAT_SECTOR);
+    flash_write_sector((uint8_t const *)stat, FLOG_BLOCK_STAT_SECTOR, 0, sizeof(flog_block_stat_sector_header_t));
     flash_commit();
 }
 
-static void flog_get_block_stat(flog_block_idx_t block, flog_block_stat_sector_t *stat) {
-    flog_open_sector(block, FLOG_BLK_STAT_SECTOR);
-    flash_read_sector((uint8_t *)stat, FLOG_BLK_STAT_SECTOR, 0, sizeof(flog_block_stat_sector_t));
+static void flog_get_block_stat(flog_block_idx_t block, flog_block_stat_sector_header_t *stat) {
+    flog_open_sector(block, FLOG_BLOCK_STAT_SECTOR);
+    flash_read_sector((uint8_t *)stat, FLOG_BLOCK_STAT_SECTOR, 0, sizeof(flog_block_stat_sector_header_t));
 }
 
 static void flog_invalidate_chain(flog_block_idx_t block, flog_file_id_t file_id) {
     flog_file_tail_sector_header_t file_tail_sector;
-    flog_block_stat_sector_t block_stat;
+    flog_block_stat_sector_header_t block_stat;
     flog_block_idx_t num_freed = 0;
 
     union {
-        flog_file_invalidation_sector_t invalidation;
         flog_file_init_sector_header_t init_sector;
     } init_buffer_union;
 
@@ -1860,8 +1846,8 @@ static void flog_invalidate_chain(flog_block_idx_t block, flog_file_id_t file_id
                 flog_open_sector(block, FLOG_TAIL_SECTOR);
                 flash_read_sector((uint8_t *)&file_tail_sector, FLOG_TAIL_SECTOR, 0, sizeof(flog_file_tail_sector_header_t));
                 block_stat.age = init_buffer_union.init_sector.age;
-                block_stat.next_block = file_tail_sector.next_block;
-                block_stat.next_age = file_tail_sector.next_age;
+                block_stat.next_block = file_tail_sector.universal.next_block;
+                block_stat.next_age = file_tail_sector.universal.next_age;
                 block_stat.timestamp = ++flogfs.t;
                 flog_close_sector();
 
@@ -1980,16 +1966,6 @@ static void flog_flush_dirty_block() {
         flog_flush_write(flogfs.dirty_block.file);
         flogfs.dirty_block.block = FLOG_BLOCK_IDX_INVALID;
     }
-}
-
-static void flog_get_file_init_sector(flog_block_idx_t block, flog_file_init_sector_header_t *header) {
-    flog_open_sector(block, FLOG_INIT_SECTOR);
-    flash_read_sector((uint8_t *)header, FLOG_INIT_SECTOR, 0, sizeof(flog_file_init_sector_header_t));
-}
-
-static void flog_get_universal_tail_sector(flog_block_idx_t block, flog_universal_tail_sector_t *header) {
-    flog_open_sector(block, FLOG_TAIL_SECTOR);
-    flash_read_sector((uint8_t *)header, FLOG_TAIL_SECTOR, 0, sizeof(flog_universal_tail_sector_t));
 }
 
 #ifndef IS_DOXYGEN

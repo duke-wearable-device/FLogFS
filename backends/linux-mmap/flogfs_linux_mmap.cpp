@@ -13,9 +13,11 @@
 
 #include "flogfs_linux_mmap.h"
 
+#ifdef FLOGFS_VERBOSE_LOGGING
 #define fslog_trace(f, ...) flash_debug_warn(f, ##__VA_ARGS__)
-
-#define fslog_debug(f, ...) flash_debug_warn(f, ##__VA_ARGS__)
+#else
+#define fslog_trace(f, ...)
+#endif
 
 constexpr uint32_t FS_SECTORS_PER_PAGE_INTERNAL = (FS_SECTORS_PER_PAGE + 1);
 
@@ -115,18 +117,18 @@ void flash_unlock() {
 }
 
 flog_result_t flash_open_page(flog_block_idx_t block, flog_page_index_t page) {
-    // fslog_debug("flash_open_page(%d, %d)", block, page);
+    // fslog_trace("flash_open_page(%d, %d)", block, page);
     open_block = block;
     open_page = page;
     return FLOG_RESULT(FLOG_SUCCESS);
 }
 
 void flash_close_page() {
-    // fslog_debug("flash_close_page");
+    // fslog_trace("flash_close_page");
 }
 
 flog_result_t flash_erase_block(flog_block_idx_t block) {
-    fslog_debug("flash_erase_block(%d)", block);
+    fslog_trace("flash_erase_block(%d)", block);
     log.append(LogEntry{ OperationType::EraseBlock, block });
     memset(mapped_sector_absolute_ptr(block, 0, 0, 0), FS_ERASE_CHAR, sectors_per_block() * FS_SECTOR_SIZE);
     return FLOG_RESULT(FLOG_SUCCESS);
@@ -153,28 +155,28 @@ static void verified_memcpy(void *dst, const void *src, size_t size) {
 }
 
 flog_result_t flash_read_sector(uint8_t *dst, flog_sector_idx_t sector, uint16_t offset, uint16_t n) {
-    fslog_debug("flash_read_sector(%d/%d, %d, %d, %d)", open_block, open_page, sector, offset, n);
+    fslog_trace("flash_read_sector(%d/%d, %d, %d, %d)", open_block, open_page, sector, offset, n);
     auto src = mapped_sector_ptr(sector % FS_SECTORS_PER_PAGE, offset);
     memcpy(dst, src, n);
     return FLOG_SUCCESS;
 }
 
 flog_result_t flash_read_spare(uint8_t *dst, flog_sector_idx_t sector) {
-    fslog_debug("flash_read_spare(%d/%d, %d)", open_block, open_page, sector);
+    fslog_trace("flash_read_spare(%d/%d, %d)", open_block, open_page, sector);
     auto src = mapped_sector_ptr(0, 0x804 + (sector % FS_SECTORS_PER_PAGE) * 0x10);
     memcpy(dst, src, sizeof(flog_file_sector_spare_t));
     return FLOG_SUCCESS;
 }
 
 void flash_write_sector(uint8_t const *src, flog_sector_idx_t sector, uint16_t offset, uint16_t n) {
-    fslog_debug("flash_write_sector(%d/%d, %d, %d, %d)", open_block, open_page, sector, offset, n);
+    fslog_trace("flash_write_sector(%d/%d, %d, %d, %d)", open_block, open_page, sector, offset, n);
     auto dst = mapped_sector_ptr(sector % FS_SECTORS_PER_PAGE, offset);
     log.append(LogEntry{ OperationType::WriteSector, open_block, open_page, sector, dst, offset, n });
     verified_memcpy(dst, src, n);
 }
 
 void flash_write_spare(uint8_t const *src, flog_sector_idx_t sector) {
-    fslog_debug("flash_write_spare(%d/%d, %d)", open_block, open_page, sector);
+    fslog_trace("flash_write_spare(%d/%d, %d)", open_block, open_page, sector);
     auto dst = mapped_sector_ptr(0, 0x804 + (sector % FS_SECTORS_PER_PAGE) * 0x10);
     log.append(LogEntry{ OperationType::WriteSpare, open_block, open_page, sector, dst });
     verified_memcpy(dst, src, sizeof(flog_file_sector_spare_t));
@@ -202,9 +204,8 @@ void flash_high_level(flog_high_level_event_t hle) {
     }
 }
 
-constexpr uint16_t DebugLineMax = 256;
-
 void flash_debug(const char *f, va_list args) {
+    constexpr uint16_t DebugLineMax = 256;
     char buffer[DebugLineMax];
     auto w = vsnprintf(buffer, DebugLineMax, f, args);
     buffer[w] = '\r';
@@ -214,19 +215,19 @@ void flash_debug(const char *f, va_list args) {
 }
 
 void flash_debug_warn(char const *f, ...) {
-    #ifdef FLOGFS_VERBOSE_LOGGING
     va_list args;
     va_start(args, f);
     flash_debug(f, args);
     va_end(args);
-    #endif
 }
 
 void flash_debug_error(char const *f, ...) {
-    #ifdef FLOGFS_VERBOSE_LOGGING
     va_list args;
     va_start(args, f);
     flash_debug(f, args);
     va_end(args);
-    #endif
+}
+
+void flash_debug_panic() {
+    exit(2);
 }

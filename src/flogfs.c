@@ -34,7 +34,6 @@ either expressed or implied, of the FLogFS Project.
  * @brief Core file system implementation
  */
 
-#include <assert.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -50,6 +49,13 @@ extern "C" {
 #endif
 
 #include "flogfs_conf_implement.h"
+
+static void flog_assert(const char *msg, const char *file, int lineno) {
+    flash_debug_error("Assertion failed: %s:%d %s", file, lineno, msg);
+    flash_debug_panic();
+}
+
+#define assert(EX) (void)((EX) || (flog_assert(#EX, __FILE__, __LINE__), 0))
 
 //! @addtogroup FLogPrivate
 //! @{

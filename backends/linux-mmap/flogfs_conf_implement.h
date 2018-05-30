@@ -39,6 +39,8 @@ void flash_debug_warn(char const *f, ...);
 
 void flash_debug_error(char const *f, ...);
 
+void flash_debug_panic();
+
 uint32_t flash_random(uint32_t max);
 
 void flash_high_level(flog_high_level_event_t hle);

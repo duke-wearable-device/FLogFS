@@ -124,6 +124,7 @@ typedef enum {
 #define FLOG_SECTOR_NBYTES_INVALID ((flog_sector_nbytes_t)(-1))
 #define FLOG_SECTOR_TYPE_ID_INVALID ((uint8_t)-1)
 #define FLOG_SECTOR_IDX_INVALID ((flog_sector_idx_t)-1)
+#define FLOG_PAGE_IDX_INVALID ((flog_page_index_t)-1)
 
 //! @}
 

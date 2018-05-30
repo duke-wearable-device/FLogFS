@@ -10,8 +10,6 @@ set(PROJECT_INCLUDES
   ${FLOGFS_SRCS} ${FLOGFS_BACKEND_SRCS}
 )
 
-message("${PROJECT_INCLUDES}")
-
 target_include_directories(testall PUBLIC "${PROJECT_INCLUDES}")
 
 target_link_libraries(testall libgtest libgmock)

@@ -140,9 +140,6 @@ void generate_random_files(uint8_t number_of_files, uint8_t number_of_iterations
             for (auto i = 0; i < number_of_files; ++i) {
                 FLOG_CHECK(flogfs_rm(names[i].c_str()));
             }
-
-            std::cout << "After deleting" << std::endl;
-            FLOG_CHECK(flogfs_test());
         }
 
         for (auto i = 0; i < number_of_files; ++i) {
@@ -185,20 +182,26 @@ void generate_random_files(uint8_t number_of_files, uint8_t number_of_iterations
             std::cout << "Closing " << names[i] << " " << flogfs_write_file_size(&files[i]) << " " << files[i].block << std::endl;
             FLOG_CHECK(flogfs_close_write(&files[i]));
         }
-
-        FLOG_CHECK(flogfs_test());
     }
 }
 
 int32_t main(int argc, char *argv[]) {
-    flog_init_params_t params {
+    bool truncate = false;
+    flog_initialize_params_t params {
         .number_of_blocks = 256,
         .pages_per_block = 64,
     };
 
-    FLOG_CHECK(flogfs_linux_open(Path, true, &params));
+    for (auto i = 0; i < argc; ++i) {
+        auto arg = std::string{ argv[i] };
+        if (arg == "--truncate") {
+            truncate = true;
+        }
+    }
 
-    FLOG_CHECK(flogfs_init(&params));
+    FLOG_CHECK(flogfs_linux_open(Path, truncate, &params));
+
+    FLOG_CHECK(flogfs_initialize(&params));
 
     std::cout << "Mounting" << std::endl;
     if (flogfs_mount() == FLOG_FAILURE) {
@@ -208,20 +211,19 @@ int32_t main(int argc, char *argv[]) {
         FLOG_CHECK(flogfs_mount());
     }
 
+    srand(1);
+
     if (false) {
-        FLOG_CHECK(flogfs_test());
         write_file("data-1.bin");
-        FLOG_CHECK(flogfs_test());
         FLOG_CHECK(flogfs_rm("data-1.bin"));
-        FLOG_CHECK(flogfs_test());
     }
+
     else if (true) {
         for (auto i = 0; i < 10; ++i) {
             std::cout << "Mounting" << std::endl;
-            if (i % 5 == 0) {
-                FLOG_CHECK(flogfs_init(&params));
+            if (i % 3 == 0) {
+                FLOG_CHECK(flogfs_initialize(&params));
                 FLOG_CHECK(flogfs_mount());
-                // srand(1);
             }
             generate_random_files(10, 10, 16384, 16384 * 64);
         }

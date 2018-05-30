@@ -3,13 +3,13 @@
 
 typedef void *fs_lock_t;
 
-void fs_lock_init(fs_lock_t *lock);
+void fs_lock_initialize(fs_lock_t *lock);
 
 void fs_lock(fs_lock_t *lock);
 
 void fs_unlock(fs_lock_t *lock);
 
-flog_result_t flash_init();
+flog_result_t flash_initialize();
 
 void flash_lock();
 

@@ -34,7 +34,7 @@ static inline uint32_t get_sd_block_in_open_page(uint8_t sector) {
     return get_sd_block(open_block, open_page, sector);
 }
 
-flog_result_t flogfs_arduino_sd_open(uint8_t cs, flog_init_params_t *params) {
+flog_result_t flogfs_arduino_sd_open(uint8_t cs, flog_initialize_params_t *params) {
     pages_per_block = params->pages_per_block;
 
     if (!sd_raw_initialize(&sd, cs)) {
@@ -52,7 +52,7 @@ flog_result_t flogfs_arduino_sd_close() {
     return FLOG_FAILURE;
 }
 
-void fs_lock_init(fs_lock_t *lock) {
+void fs_lock_initialize(fs_lock_t *lock) {
 }
 
 void fs_lock(fs_lock_t *lock) {
@@ -61,7 +61,7 @@ void fs_lock(fs_lock_t *lock) {
 void fs_unlock(fs_lock_t *lock) {
 }
 
-flog_result_t flash_init() {
+flog_result_t flash_initialize() {
     return FLOG_SUCCESS;
 }
 

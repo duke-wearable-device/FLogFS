@@ -30,7 +30,7 @@ static inline uint32_t sectors_per_block() {
     return FS_SECTORS_PER_PAGE_INTERNAL * pages_per_block;
 }
 
-flog_result_t flogfs_linux_open(const char *path, bool truncate, flog_init_params_t *params) {
+flog_result_t flogfs_linux_open(const char *path, bool truncate, flog_initialize_params_t *params) {
     fd = open(path, O_RDWR | O_CREAT | (truncate ? O_TRUNC : 0), 0644);
     if (fd < 0) {
         return FLOG_FAILURE;
@@ -87,7 +87,7 @@ static inline void *mapped_sector_ptr(uint8_t sector, uint16_t offset) {
     return mapped_sector_absolute_ptr(open_block, open_page, sector, offset);
 }
 
-void fs_lock_init(fs_lock_t *lock) {
+void fs_lock_initialize(fs_lock_t *lock) {
 }
 
 void fs_lock(fs_lock_t *lock) {
@@ -96,7 +96,7 @@ void fs_lock(fs_lock_t *lock) {
 void fs_unlock(fs_lock_t *lock) {
 }
 
-flog_result_t flash_init() {
+flog_result_t flash_initialize() {
     return FLOG_RESULT(mapped != nullptr);
 }
 

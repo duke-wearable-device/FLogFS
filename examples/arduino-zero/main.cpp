@@ -144,13 +144,13 @@ void setup() {
 
     debugfln("Initialize");
 
-    flog_init_params_t params {
+    flog_initialize_params_t params {
         .number_of_blocks = 10,
         .pages_per_block = 64,
     };
     FLOG_CHECK(flogfs_arduino_sd_open(12, &params));
 
-    FLOG_CHECK(flogfs_init(&params));
+    FLOG_CHECK(flogfs_initialize(&params));
 
     debugfln("Mounting");
 

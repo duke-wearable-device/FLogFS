@@ -45,7 +45,7 @@ typedef uint8_t flash_spare_t[59];
 
 typedef Mutex fs_lock_t;
 
-static inline void fs_lock_init(fs_lock_t *lock) {
+static inline void fs_lock_initialize(fs_lock_t *lock) {
     chMtxInit(lock);
 }
 
@@ -63,7 +63,7 @@ static uint16_t flash_page;
 static uint8_t have_metadata;
 static uint8_t page_open;
 
-static inline flog_result_t flash_init() {
+static inline flog_result_t flash_initialize() {
     page_open = 0;
     return FLOG_RESULT(flash.init());
 }

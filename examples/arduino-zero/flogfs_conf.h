@@ -53,6 +53,9 @@ either expressed or implied, of the FLogFS Project.
 //! The number of blocks to preallocate
 #define FS_PREALLOCATE_SIZE (8)
 
+//! The number of blocks to search to search for inode0 for.
+#define FS_INODE0_MAX_BLOCK (32)
+
 //! @} // FLogConf
 
 #endif

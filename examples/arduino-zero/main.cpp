@@ -78,7 +78,7 @@ void read_records(flog_read_file_t *file, size_t expected_size) {
         actually_read += bytes_read;
         buffer[sizeof(buffer) - 1] = 0;
         if (strcmp((const char *)buffer, Pattern) != 0) {
-            debugfln("Error, garbiled read!");
+            debugfln("Error, garbled read!");
         }
     }
 
@@ -158,10 +158,15 @@ void setup() {
         debugfln("Formatting");
         FLOG_CHECK(flogfs_format());
     }
+    else if (true) {
+        debugfln("Formatting");
+        FLOG_CHECK(flogfs_format());
+    }
 
     debugfln("Mounting");
     FLOG_CHECK(flogfs_mount());
 
+    debugfln("Writing Files");
     auto size1 = write_file("data-1.bin");
     auto size2 = write_file("data-2.bin");
     auto size3 = write_file("data-3.bin");

@@ -451,7 +451,7 @@ flog_result_t flog_prealloc_prime() {
     flash_high_level(FLOG_PRIME_BEGIN);
 
     for (uint8_t i = 0; i < FS_PREALLOCATE_SIZE; ++i) {
-        block = flash_random() % flogfs.params.number_of_blocks;
+        block = flash_random(flogfs.params.number_of_blocks);
 
         if (block == 0) {
             continue;
@@ -526,7 +526,7 @@ static flog_block_idx_t flogfs_find_first_inode() {
     flog_inode_init_sector_spare_t inode_spare0;
     flog_block_idx_t block;
 
-    for (block = FS_FIRST_BLOCK; block < flogfs.params.number_of_blocks; block++) {
+    for (block = FS_FIRST_BLOCK; block < FS_INODE0_MAX_BLOCK; block++) {
         if (FLOG_FAILURE == flash_open_page(block, 0)) {
             continue;
         }

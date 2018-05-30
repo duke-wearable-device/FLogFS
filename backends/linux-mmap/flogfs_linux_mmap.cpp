@@ -180,8 +180,8 @@ void flash_write_spare(uint8_t const *src, flog_sector_idx_t sector) {
     verified_memcpy(dst, src, sizeof(flog_file_sector_spare_t));
 }
 
-uint32_t flash_random() {
-    return random();
+uint32_t flash_random(uint32_t max) {
+    return random() % max;
 }
 
 void flash_high_level(flog_high_level_event_t hle) {

@@ -130,8 +130,8 @@ void flash_write_spare(uint8_t const *src, flog_sector_idx_t sector) {
     sd_raw_write_data(&sd, sd_block, sector * 0x10, sizeof(flog_file_sector_spare_t), src, true);
 }
 
-uint32_t flash_random() {
-    return random(UINT32_MAX);
+uint32_t flash_random(uint32_t max) {
+    return random(max);
 }
 
 void flash_high_level(flog_high_level_event_t hle) {

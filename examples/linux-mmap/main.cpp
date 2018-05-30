@@ -23,10 +23,7 @@ void flog_assertion_fail(const char *expression, const char *file, uint32_t line
 int32_t main(int argc, char *argv[]) {
     std::string path;
     bool truncate = false;
-    flog_initialize_params_t params {
-        .number_of_blocks = 256,
-        .pages_per_block = 64,
-    };
+    flog_initialize_params_t params { 256, 64 };
 
     for (auto i = 1; i < argc; ++i) {
         auto arg = std::string{ argv[i] };

@@ -456,6 +456,7 @@ flog_result_t flog_prealloc_prime() {
     flog_block_statistics_sector_with_key_t statistics_sector;
     flog_inode_init_sector_spare_t inode_spare;
     flog_block_idx_t block;
+    uint32_t tries = 1024;
 
     flog_lock_fs();
     flash_lock();
@@ -465,6 +466,8 @@ flog_result_t flog_prealloc_prime() {
     flash_debug_warn("Priming");
 
     while (!flog_prealloc_is_full()) {
+        assert(--tries > 0);
+
         block = flash_random(flogfs.params.number_of_blocks);
 
         if (block == 0) {

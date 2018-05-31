@@ -11,23 +11,22 @@
 
 constexpr const char *Pattern = "abcdefgh";
 
-static flog_initialize_params_t params { 32, 16 };
+static flog_initialize_params_t params { 48, 16 };
 
-bool initialize_and_open(bool truncate) {
-    EXPECT_TRUE(flogfs_linux_open("tests.bin", truncate, &params));
-    EXPECT_TRUE(flogfs_initialize(&params));
-    if (truncate) {
-        EXPECT_TRUE(flogfs_format());
+void initialize_and_open(bool truncate, bool format) {
+    ASSERT_TRUE(flogfs_linux_open("tests.bin", truncate, &params));
+
+    ASSERT_TRUE(flogfs_initialize(&params));
+
+    if (format) {
+        ASSERT_TRUE(flogfs_format());
     }
-    EXPECT_TRUE(flogfs_mount());
 
-    std::cout << "Theoretical capacity: " << (params.number_of_blocks - 1) * params.pages_per_block * FS_SECTORS_PER_PAGE * FS_SECTOR_SIZE << std::endl;
-
-    return true;
+    ASSERT_TRUE(flogfs_mount());
 }
 
-bool flush_and_close() {
-    return flogfs_linux_close();
+void flush_and_close() {
+    ASSERT_TRUE(flogfs_linux_close());
 }
 
 std::vector<std::string> generate_random_file_names(int32_t number) {
@@ -52,7 +51,7 @@ std::vector<std::string> get_file_listing() {
     return names;
 }
 
-std::vector<GeneratedFile> write_files_randomly(std::vector<std::string> &names, uint8_t number_of_iterations, uint32_t min_size, uint32_t max_size) {
+void write_files_randomly(std::vector<std::string> &names, uint8_t number_of_iterations, uint32_t min_size, uint32_t max_size) {
     std::vector<GeneratedFile> files(names.size());
     for (auto i = 0; i < names.size(); ++i) {
         files[i].name = names[i];
@@ -63,7 +62,7 @@ std::vector<GeneratedFile> write_files_randomly(std::vector<std::string> &names,
 
         if (j > 0) {
             for (auto &file : files) {
-                EXPECT_TRUE(flogfs_rm(file.name.c_str()));
+                ASSERT_TRUE(flogfs_rm(file.name.c_str()));
             }
         }
 
@@ -71,7 +70,7 @@ std::vector<GeneratedFile> write_files_randomly(std::vector<std::string> &names,
             file.size = (random() % (max_size - min_size)) + min_size;
             file.written = 0;
 
-            EXPECT_TRUE(flogfs_open_write(&file.file, file.name.c_str()));
+            ASSERT_TRUE(flogfs_open_write(&file.file, file.name.c_str()));
         }
 
         while (true) {
@@ -85,9 +84,7 @@ std::vector<GeneratedFile> write_files_randomly(std::vector<std::string> &names,
                     while (to_write > 0) {
                         auto writing = std::min((uint32_t)to_write, (uint32_t)strlen(Pattern));
                         auto wrote = flogfs_write(&file.file, (uint8_t *)Pattern, writing);
-                        if (wrote != writing) {
-                            assert(wrote == writing);
-                        }
+                        ASSERT_EQ(wrote, writing);
                         to_write -= wrote;
                         file.written += wrote;
                         total_written += wrote;
@@ -102,13 +99,9 @@ std::vector<GeneratedFile> write_files_randomly(std::vector<std::string> &names,
         }
 
         for (auto &file : files) {
-            EXPECT_TRUE(flogfs_close_write(&file.file));
+            ASSERT_TRUE(flogfs_close_write(&file.file));
         }
-
-        std::cout << "Total Written: " << total_written << " bytes" << std::endl;
     }
-
-    return files;
 }
 
 void Analysis::append(BlockAnalysis &&ba) {
@@ -321,18 +314,27 @@ Analysis analyze_file_system() {
     return analysis;
 }
 
-bool Analysis::verify() {
-    for (auto &inodes = blocks_[FS_FIRST_BLOCK]; ; ) {
-        std::cout << inodes << std::endl;
+void Analysis::verify(std::ostream &os) {
+    std::vector<flog_block_idx_t> used;
+    std::string indention{ "    " };
 
-        EXPECT_TRUE(inodes.is_inode());
+    for (auto &inodes = blocks_[FS_FIRST_BLOCK]; ; ) {
+        used.push_back(inodes.block);
+
+        os << inodes << std::endl;
+
+        ASSERT_TRUE(inodes.is_inode());
 
         auto files = inodes.file_entries();
-        for (auto &f : files) {
-            for (auto &data = blocks_[f.first_block]; ; ) {
-                std::cout << data << std::endl;
 
-                EXPECT_TRUE(data.is_file());
+        for (auto &f : files) {
+            os << "File #" << f.file_id << std::endl;
+            for (auto &data = blocks_[f.first_block]; ; ) {
+                used.push_back(data.block);
+
+                os << indention << data << std::endl;
+
+                ASSERT_TRUE(data.is_file());
 
                 if (!data.has_more()) {
                     break;
@@ -349,5 +351,10 @@ bool Analysis::verify() {
         inodes = blocks_[inodes.next_block];
     }
 
-    return true;
+    os << "Free Blocks:" << std::endl;
+    for (auto &block : blocks_) {
+        if (std::find(used.begin(), used.end(), block.block) == used.end()) {
+            os << indention << block << std::endl;
+        }
+    }
 }

@@ -19,13 +19,27 @@ void LongRunningOpsSuite::TearDown() {
 };
 
 TEST_F(LongRunningOpsSuite, GenerateRandomFiles) {
-    EXPECT_TRUE(initialize_and_open());
+    initialize_and_open();
+
+    auto names = generate_random_file_names(10);
+
+    write_files_randomly(names, 20, 4096, 65536);
+}
+
+TEST_F(LongRunningOpsSuite, RepeatedFormatting) {
+    initialize_and_open();
 
     auto names = generate_random_file_names(10);
 
     write_files_randomly(names, 20, 4096, 65536);
 
-    auto analysis = analyze_file_system();
+    for (auto &name : names) {
+        EXPECT_TRUE(flogfs_rm(name.c_str()));
+    }
 
-    EXPECT_TRUE(analysis.verify());
+    flush_and_close();
+
+    initialize_and_open(false, true);
+
+    write_files_randomly(names, 20, 4096, 65536);
 }

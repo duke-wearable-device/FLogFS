@@ -22,3 +22,6 @@ target_link_libraries(testall-00 libgtest libgmock)
 set_target_properties(testall-00 PROPERTIES C_STANDARD 11)
 set_target_properties(testall-00 PROPERTIES CXX_STANDARD 11)
 add_test(NAME testall-00 COMMAND testall-00)
+
+# target_compile_definitions(testall-ff PUBLIC "-DFLOGFS_DEBUG")
+# target_compile_definitions(testall-00 PUBLIC "-DFLOGFS_DEBUG")

@@ -5,9 +5,9 @@
 #include <string>
 #include <cstdint>
 
-bool initialize_and_open(bool truncate = true);
+void initialize_and_open(bool truncate = true, bool format = true);
 
-bool flush_and_close();
+void flush_and_close();
 
 std::vector<std::string> generate_random_file_names(int32_t number);
 
@@ -20,7 +20,7 @@ struct GeneratedFile {
     size_t written;
 };
 
-std::vector<GeneratedFile> write_files_randomly(std::vector<std::string> &names, uint8_t number_of_iterations, uint32_t min_size, uint32_t max_size);
+void write_files_randomly(std::vector<std::string> &names, uint8_t number_of_iterations, uint32_t min_size, uint32_t max_size);
 
 struct INodeSector {
     flog_sector_idx_t sector;
@@ -108,7 +108,7 @@ public:
     }
 
 public:
-    bool verify();
+    void verify(std::ostream &os);
 
 public:
     int32_t number_of_blocks(uint8_t type) const;

@@ -300,8 +300,12 @@ static void flog_block_statistics_write(flog_block_idx_t block, flog_block_stati
 
 static void flog_block_statistics_read(flog_block_idx_t block, flog_block_statistics_sector_with_key_t *stat);
 
-static uint_fast8_t invalid_block_statistics_sector_with_key(flog_block_statistics_sector_with_key_t *header) {
-    return memcmp(header->key, flog_block_statistics_key, sizeof(flog_block_statistics_key)) != 0;
+static uint_fast8_t invalid_block(flog_block_statistics_sector_with_key_t *sector) {
+    return memcmp(sector->key, flog_block_statistics_key, sizeof(flog_block_statistics_key)) != 0;
+}
+
+static uint_fast8_t invalid_block_or_older_version(flog_block_statistics_sector_with_key_t *sector) {
+    return sector->header.version != flogfs.version || invalid_block(sector);
 }
 
 static uint_fast8_t invalid_sector_spare(flog_file_sector_spare_t *spare) {
@@ -353,6 +357,7 @@ flog_result_t flogfs_initialize(flog_initialize_params_t *params) {
 
     flogfs.state = FLOG_STATE_RESET;
     flogfs.cache_status.page_open = 0;
+    flogfs.version = 31337;
     flogfs.dirty_block.block = FLOG_BLOCK_IDX_INVALID;
     flogfs.dirty_block.file = NULL;
 
@@ -389,13 +394,17 @@ flog_result_t flogfs_format() {
         flog_block_statistics_read(block, &statistics_sector);
         flog_close_sector();
 
-        if (invalid_block_statistics_sector_with_key(&statistics_sector)) {
+        if (invalid_block(&statistics_sector)) {
             statistics_sector.header.age = 0;
             memcpy(statistics_sector.key, flog_block_statistics_key, sizeof(flog_block_statistics_key));
+            statistics_sector.header.version = flogfs.version;
+        }
+        else {
+            statistics_sector.header.version++;
+            flogfs.version = statistics_sector.header.version;
         }
         statistics_sector.header.next_block = FLOG_BLOCK_IDX_INVALID;
         statistics_sector.header.next_age = FLOG_BLOCK_AGE_INVALID;
-        statistics_sector.header.version = flogfs.version;
         statistics_sector.header.timestamp = 0;
 
         if (FLOG_FAILURE == flash_erase_block(block)) {
@@ -492,11 +501,12 @@ flog_result_t flog_prealloc_prime() {
         flash_read_spare((uint8_t *)&inode_spare, FLOG_INIT_SECTOR);
         flog_close_sector();
 
-        if (invalid_block_statistics_sector_with_key(&statistics_sector)) {
+        if (invalid_block_or_older_version(&statistics_sector)) {
             statistics_sector.header.age = 0;
             statistics_sector.header.next_block = FLOG_BLOCK_IDX_INVALID;
             statistics_sector.header.next_age = FLOG_BLOCK_AGE_INVALID;
             statistics_sector.header.timestamp = 0;
+            statistics_sector.header.version = flogfs.version;
             memcpy(statistics_sector.key, flog_block_statistics_key, sizeof(flog_block_statistics_key));
 
             if (FLOG_FAILURE == flash_erase_block(block)) {
@@ -542,23 +552,31 @@ failure:
 }
 
 static flog_block_idx_t flogfs_find_first_inode() {
-    flog_inode_init_sector_spare_t inode_spare0;
+    flog_block_statistics_sector_with_key_t statistics_sector;
+    flog_inode_init_sector_spare_t inode_spare;
     flog_block_idx_t block;
 
     for (block = FS_FIRST_BLOCK; block < FS_INODE0_MAX_BLOCK; block++) {
-        if (FLOG_FAILURE == flash_open_page(block, 0)) {
-            continue;
-        }
-        if (FLOG_SUCCESS == flash_block_is_bad()) {
+        if (!flash_open_page(block, 0)) {
             continue;
         }
 
-        flash_read_spare((uint8_t *)&inode_spare0, FLOG_INIT_SECTOR);
+        if (flash_block_is_bad()) {
+            continue;
+        }
+
+        flog_block_statistics_read(block, &statistics_sector);
+        flash_read_spare((uint8_t *)&inode_spare, FLOG_INIT_SECTOR);
+        flog_close_sector();
+
+        if (invalid_block_or_older_version(&statistics_sector)) {
+            continue;
+        }
 
         // TODO: Previous if we found two inode0 blocks we would compare
         // timestamps. Should we be guarding against that?
-        if (inode_spare0.type_id == FLOG_BLOCK_TYPE_INODE) {
-            if (inode_spare0.inode_index == 0) {
+        if (inode_spare.type_id == FLOG_BLOCK_TYPE_INODE) {
+            if (inode_spare.inode_index == 0) {
                 return block;
             }
         }
@@ -1460,7 +1478,7 @@ flog_result_t flog_walk(file_walk_fn_t walk_fn, void *arg) {
 
         flash_read_spare((uint8_t *)&inode_spare, FLOG_INIT_SECTOR);
 
-        state.valid_block = !invalid_block_statistics_sector_with_key(&block_sector);
+        state.valid_block = !invalid_block_or_older_version(&block_sector);
 
         if (state.valid_block) {
             flog_open_sector(state.block, FLOG_INIT_SECTOR);
@@ -1819,15 +1837,17 @@ static flog_result_t flog_inode_prepare_new(flog_inode_iterator_t *iter) {
     return FLOG_SUCCESS;
 }
 
-static void flog_block_statistics_write(flog_block_idx_t block, flog_block_statistics_sector_with_key_t const *stat) {
+static void flog_block_statistics_write(flog_block_idx_t block, flog_block_statistics_sector_with_key_t const *sector) {
+    assert(sector->header.version != 0);
+
     flog_open_sector(block, FLOG_BLOCK_STATISTICS_SECTOR);
-    flash_write_sector((uint8_t const *)stat, FLOG_BLOCK_STATISTICS_SECTOR, 0, sizeof(flog_block_statistics_sector_with_key_t));
+    flash_write_sector((uint8_t const *)sector, FLOG_BLOCK_STATISTICS_SECTOR, 0, sizeof(flog_block_statistics_sector_with_key_t));
     flash_commit();
 }
 
-static void flog_block_statistics_read(flog_block_idx_t block, flog_block_statistics_sector_with_key_t *stat) {
+static void flog_block_statistics_read(flog_block_idx_t block, flog_block_statistics_sector_with_key_t *sector) {
     flog_open_sector(block, FLOG_BLOCK_STATISTICS_SECTOR);
-    flash_read_sector((uint8_t *)stat, FLOG_BLOCK_STATISTICS_SECTOR, 0, sizeof(flog_block_statistics_sector_with_key_t));
+    flash_read_sector((uint8_t *)sector, FLOG_BLOCK_STATISTICS_SECTOR, 0, sizeof(flog_block_statistics_sector_with_key_t));
 }
 
 static void flog_invalidate_chain(flog_block_idx_t block, flog_file_id_t file_id) {

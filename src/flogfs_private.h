@@ -135,7 +135,7 @@ typedef enum {
 
 //! @}
 
-static char const flog_block_stat_key[] = "Bears";
+static char const flog_block_statistics_key[] = "Bears";
 
 typedef struct {
     //! The age of the block
@@ -146,12 +146,14 @@ typedef struct {
     flog_block_idx_t next_block;
     //! The age of @ref next_block
     flog_block_age_t next_age;
-} flog_block_stat_sector_header_t;
+    //! Version field
+    uint32_t version;
+} flog_block_statistics_sector_header_t;
 
-typedef struct flog_block_stat_sector_with_key_t {
-    flog_block_stat_sector_header_t header;
-    char key[sizeof(flog_block_stat_key)];
-} flog_block_stat_sector_with_key_t;
+typedef struct {
+    flog_block_statistics_sector_header_t header;
+    char key[sizeof(flog_block_statistics_key)];
+} flog_block_statistics_sector_with_key_t;
 
 typedef struct {
     flog_timestamp_t timestamp;
@@ -226,7 +228,7 @@ typedef struct {
 //! @name Special sector indices
 //! @{
 typedef enum {
-    FLOG_BLOCK_STAT_SECTOR = (0),
+    FLOG_BLOCK_STATISTICS_SECTOR = (0),
     FLOG_INIT_SECTOR = (1),
     FLOG_TAIL_SECTOR = (3),
     FLOG_FILE_FIRST_DATA_SECTOR = (2),

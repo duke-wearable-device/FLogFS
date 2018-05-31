@@ -12,12 +12,12 @@ clean:
 test: build
 	build/examples/linux-mmap/example-linux-mmap-00 --truncate flash-00.bin
 	build/examples/linux-mmap/example-linux-mmap-ff --truncate flash-ff.bin
-	cd build && make test ARGS=-VV
+	cd build && env GTEST_COLOR=1 make test ARGS=-VV
 
 test-00: build
-	build/test/testall/testall-00 -VV
+	env GTEST_COLOR=1 build/test/testall/testall-00 -VV
 
 test-ff: build
-	build/test/testall/testall-ff -VV
+	env GTEST_COLOR=1 build/test/testall/testall-ff -VV
 
 .PHONY: build clean

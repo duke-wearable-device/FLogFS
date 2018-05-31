@@ -15,6 +15,7 @@ void FileOpsSuite::SetUp() {
 };
 
 void FileOpsSuite::TearDown() {
+    EXPECT_TRUE(flush_and_close());
 };
 
 TEST_F(FileOpsSuite, InitializeAndFormat) {
@@ -79,6 +80,8 @@ TEST_F(FileOpsSuite, FileSizeAfterMount) {
     EXPECT_EQ(flogfs_write_file_size(&fwrite), sizeof(pattern) * 4);
 
     EXPECT_TRUE(flogfs_close_write(&fwrite));
+
+    EXPECT_TRUE(flush_and_close());
 
     EXPECT_TRUE(initialize_and_open(false));
 

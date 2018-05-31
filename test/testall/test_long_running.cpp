@@ -15,6 +15,7 @@ void LongRunningOpsSuite::SetUp() {
 };
 
 void LongRunningOpsSuite::TearDown() {
+    flush_and_close();
 };
 
 TEST_F(LongRunningOpsSuite, GenerateRandomFiles) {

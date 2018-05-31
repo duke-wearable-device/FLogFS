@@ -26,6 +26,10 @@ bool initialize_and_open(bool truncate) {
     return true;
 }
 
+bool flush_and_close() {
+    return flogfs_linux_close();
+}
+
 std::vector<std::string> generate_random_file_names(int32_t number) {
     std::vector<std::string> names;
     for (auto i = 0; i < number; ++i) {

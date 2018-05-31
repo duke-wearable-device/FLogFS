@@ -7,6 +7,8 @@
 
 bool initialize_and_open(bool truncate = true);
 
+bool flush_and_close();
+
 std::vector<std::string> generate_random_file_names(int32_t number);
 
 std::vector<std::string> get_file_listing();

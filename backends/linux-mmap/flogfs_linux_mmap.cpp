@@ -34,6 +34,9 @@ static inline uint32_t sectors_per_block() {
 }
 
 flog_result_t flogfs_linux_open(const char *path, bool truncate, flog_initialize_params_t *params) {
+    assert(fd == -1);
+    assert(mapped == nullptr);
+
     fd = open(path, O_RDWR | O_CREAT | (truncate ? O_TRUNC : 0), 0644);
     if (fd < 0) {
         return FLOG_FAILURE;
@@ -71,7 +74,7 @@ flog_result_t flogfs_linux_close() {
         munmap(mapped, mapped_size);
         mapped = nullptr;
     }
-    if (fd < 0) {
+    if (fd != -1) {
         close(fd);
         fd = -1;
     }

@@ -348,6 +348,12 @@ static uint_fast8_t flog_prealloc_is_empty();
 
 static uint_fast8_t flog_prealloc_is_full();
 
+static flog_result_t unlock_and_fail() {
+    flash_unlock();
+    flog_unlock_fs();
+    return FLOG_FAILURE;
+}
+
 //! @}
 
 flog_result_t flogfs_initialize(flog_initialize_params_t *params) {
@@ -465,7 +471,8 @@ flog_result_t flog_prealloc_prime() {
     flog_block_statistics_sector_with_key_t statistics_sector;
     flog_inode_init_sector_spare_t inode_spare;
     flog_block_idx_t block;
-    uint32_t tries = 1024;
+    flog_result_t fr;
+    uint32_t tries = 64;
 
     flog_lock_fs();
     flash_lock();
@@ -474,9 +481,7 @@ flog_result_t flog_prealloc_prime() {
 
     flash_debug_warn("Priming");
 
-    while (!flog_prealloc_is_full()) {
-        assert(--tries > 0);
-
+    while (!flog_prealloc_is_full() && --tries > 0) {
         block = flash_random(flogfs.params.number_of_blocks);
 
         if (block == 0) {
@@ -510,7 +515,7 @@ flog_result_t flog_prealloc_prime() {
             memcpy(statistics_sector.key, flog_block_statistics_key, sizeof(flog_block_statistics_key));
 
             if (FLOG_FAILURE == flash_erase_block(block)) {
-                goto failure;
+                return unlock_and_fail();
             }
 
             flog_block_statistics_write(block, &statistics_sector);
@@ -541,14 +546,7 @@ flog_result_t flog_prealloc_prime() {
 
     flog_unlock_fs();
     flash_unlock();
-    return fr;
-
-failure:
-    flash_high_level(FLOG_PRIME_END);
-
-    flog_unlock_fs();
-    flash_unlock();
-    return FLOG_FAILURE;
+    return FLOG_SUCCESS;
 }
 
 static flog_block_idx_t flogfs_find_first_inode() {
@@ -624,17 +622,17 @@ flog_result_t flogfs_mount() {
     flogfs.inode0 = flogfs_find_first_inode();
 
     if (flogfs.inode0 == FLOG_BLOCK_IDX_INVALID) {
-        goto failure;
+        return unlock_and_fail();
     }
 
     if (!flogfs_inspect()) {
-        goto failure;
+        return unlock_and_fail();
     }
 
     flog_prealloc_initialize();
 
     if (!flog_prealloc_prime()) {
-        goto failure;
+        return unlock_and_fail();
     }
 
     flogfs.state = FLOG_STATE_MOUNTED;
@@ -642,10 +640,6 @@ flog_result_t flogfs_mount() {
     flash_unlock();
     flog_unlock_fs();
     return FLOG_SUCCESS;
-failure:
-    flash_unlock();
-    flog_unlock_fs();
-    return FLOG_FAILURE;
 }
 
 flog_result_t flogfs_fsck() {
@@ -656,7 +650,7 @@ flog_result_t flogfs_fsck() {
     flash_lock();
 
     // TODO: Check for unclaimed blocks (how?)
-    // TODO: Check for incomplete deletions.
+    // TODO: Check for incomplete deletions. 
 
     flash_unlock();
     flog_unlock_fs();
@@ -738,14 +732,11 @@ flog_result_t flogfs_close_read(flog_read_file_t *file) {
             }
             iter = iter->next;
         }
-        goto failure;
+        flog_unlock_fs();
+        return FLOG_FAILURE;
     }
     flog_unlock_fs();
     return FLOG_SUCCESS;
-
-failure:
-    flog_unlock_fs();
-    return FLOG_FAILURE;
 }
 
 flog_result_t flogfs_check_exists(char const *filename) {
@@ -875,7 +866,7 @@ uint32_t flogfs_write(flog_write_file_t *file, uint8_t const *src, uint32_t nbyt
         if (nbytes >= file->sector_remaining_bytes) {
             bytes_written = file->sector_remaining_bytes;
             if (flog_commit_file_sector(file, src, file->sector_remaining_bytes) == FLOG_FAILURE) {
-                goto done;
+                break;
             }
 
             src += bytes_written;
@@ -892,7 +883,6 @@ uint32_t flogfs_write(flog_write_file_t *file, uint8_t const *src, uint32_t nbyt
         }
     }
 
-done:
     flash_unlock();
     flog_unlock_fs();
 
@@ -1042,6 +1032,7 @@ static flog_result_t flogfs_read_calc_file_size(flog_read_file_t *file) {
 }
 
 typedef struct file_seek_t {
+    flog_result_t status;
     uint32_t position;
     uint32_t desired;
     flog_block_idx_t block;
@@ -1073,6 +1064,7 @@ flog_read_walk_file_result_t file_seek_walk(flogfs_walk_file_state_t *state, voi
             return FLOG_WALK_CONTINUE;
         }
         else {
+            seek->status = FLOG_SUCCESS;
             seek->offset = (seek->desired - seek->position);
             seek->bytes_remaining = state->sector_spare->nbytes - seek->offset;
             return FLOG_WALK_STOP;
@@ -1084,22 +1076,38 @@ flog_read_walk_file_result_t file_seek_walk(flogfs_walk_file_state_t *state, voi
 
 flog_result_t flogfs_read_seek(flog_read_file_t *file, uint32_t position) {
     file_seek_t seek;
+    flog_result_t fr = FLOG_SUCCESS;
+
+    flog_lock_fs();
+
+    if (flogfs.state != FLOG_STATE_MOUNTED) {
+        flog_unlock_fs();
+        return FLOG_FAILURE;
+    }
+
+    flash_lock();
 
     seek.position = 0;
     seek.desired = position;
     seek.block = file->first_block;
     seek.sector = FLOG_INIT_SECTOR;
+    seek.status = FLOG_FAILURE;
 
     if (!flogfs_read_walk_file(file, file_seek_walk, &seek)) {
-        return FLOG_FAILURE;
+        fr = FLOG_FAILURE;
+    }
+    else {
+        fr = seek.status;
+        file->block = seek.block;
+        file->sector = seek.sector;
+        file->offset = seek.offset;
+        file->sector_remaining_bytes = seek.bytes_remaining;
     }
 
-    file->block = seek.block;
-    file->sector = seek.sector;
-    file->offset = seek.offset;
-    file->sector_remaining_bytes = seek.bytes_remaining;
+    flash_unlock();
+    flog_unlock_fs();
+    return fr;
 
-    return FLOG_SUCCESS;
 }
 
 uint32_t flogfs_read_tell(flog_read_file_t *file) {
@@ -1118,6 +1126,12 @@ flog_result_t flogfs_open_write(flog_write_file_t *file, char const *filename) {
     } buffer_union;
 
     flog_lock_fs();
+
+    if (flogfs.state != FLOG_STATE_MOUNTED) {
+        flog_unlock_fs();
+        return FLOG_FAILURE;
+    }
+
     flash_lock();
 
     find_result = flog_find_file(filename, &inode_iter);

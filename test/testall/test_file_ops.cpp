@@ -117,6 +117,52 @@ TEST_F(FileOpsSuite, ReadFile) {
     ASSERT_TRUE(flogfs_close_read(&fread));
 }
 
+TEST_F(FileOpsSuite, SeekToEndFile) {
+    uint8_t pattern[256];
+    uint8_t temporary[64];
+
+    initialize_and_open();
+
+    flog_write_file_t fwrite;
+    ASSERT_TRUE(flogfs_open_write(&fwrite, "file.bin"));
+    for (auto i = 0; i < 4; ++i) {
+        ASSERT_EQ(flogfs_write(&fwrite, pattern, sizeof(pattern)), sizeof(pattern));
+    }
+    ASSERT_EQ(flogfs_write_file_size(&fwrite), sizeof(pattern) * 4);
+    ASSERT_TRUE(flogfs_close_write(&fwrite));
+
+    flog_read_file_t fread;
+    ASSERT_TRUE(flogfs_open_read(&fread, "file.bin"));
+
+    ASSERT_TRUE(flogfs_read_seek(&fread, sizeof(pattern) * 4));
+
+    ASSERT_EQ(flogfs_read(&fread, temporary, sizeof(temporary)), 0);
+
+    ASSERT_TRUE(flogfs_close_read(&fread));
+}
+
+TEST_F(FileOpsSuite, SeekPastEndFile) {
+    uint8_t pattern[256];
+    uint8_t temporary[64];
+
+    initialize_and_open();
+
+    flog_write_file_t fwrite;
+    ASSERT_TRUE(flogfs_open_write(&fwrite, "file.bin"));
+    for (auto i = 0; i < 4; ++i) {
+        ASSERT_EQ(flogfs_write(&fwrite, pattern, sizeof(pattern)), sizeof(pattern));
+    }
+    ASSERT_EQ(flogfs_write_file_size(&fwrite), sizeof(pattern) * 4);
+    ASSERT_TRUE(flogfs_close_write(&fwrite));
+
+    flog_read_file_t fread;
+    ASSERT_TRUE(flogfs_open_read(&fread, "file.bin"));
+
+    ASSERT_FALSE(flogfs_read_seek(&fread, sizeof(pattern) * 128));
+
+    ASSERT_TRUE(flogfs_close_read(&fread));
+}
+
 TEST_F(FileOpsSuite, SeekFile) {
     uint8_t pattern[256];
     uint8_t temporary[64];

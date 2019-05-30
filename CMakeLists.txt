@@ -1,5 +1,7 @@
 project(FLogFS)
-cmake_minimum_required(VERSION 2.6)
+cmake_minimum_required(VERSION 3.5)
+
+set(CMAKE_MODULE_PATH $ENV{CMAKE_MODULE_PATH})
 
 enable_testing()
 

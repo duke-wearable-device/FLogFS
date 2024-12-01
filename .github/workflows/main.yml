@@ -1,0 +1,41 @@
+name: CMake CI with Google Test
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout the repository
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Install dependencies
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y cmake g++ make
+
+      # Create build directory for the tests
+      - name: Create build directory
+        run: mkdir -p build/test
+
+      # Configure CMake for tests, excluding examples
+      - name: Configure CMake
+        run: |
+          cmake -S . -B build/test \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_EXAMPLES=OFF
+
+      # Build the tests with parallel jobs
+      - name: Build Tests
+        run: cmake --build build/test --config Release -j$(nproc)
+
+      # Run Google Test
+      - name: Run Tests
+        run: ctest --test-dir build/test --output-on-failure

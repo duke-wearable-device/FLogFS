@@ -45,7 +45,7 @@ either expressed or implied, of the FLogFS Project.
 //! @{
 
 //! Compile as C++
-#define FLOG_BUILD_CPP (0)
+#define FLOG_BUILD_CPP (1)
 
 //! @name Version Number
 //! @{

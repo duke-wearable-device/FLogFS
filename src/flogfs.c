@@ -40,6 +40,9 @@ either expressed or implied, of the FLogFS Project.
 #include "flogfs.h"
 #include "flogfs_private.h"
 
+
+
+
 #ifndef IS_DOXYGEN
 #if !FLOG_BUILD_CPP
 #ifdef __cplusplus
@@ -47,6 +50,8 @@ extern "C" {
 #endif
 #endif
 #endif
+
+
 
 #include "flogfs_conf_implement.h"
 
@@ -305,6 +310,7 @@ static uint_fast8_t invalid_block(flog_block_statistics_sector_with_key_t *secto
 }
 
 static uint_fast8_t invalid_block_or_older_version(flog_block_statistics_sector_with_key_t *sector) {
+    printk("sector->header.version: %d,  flogfs.version: %d\n",sector->header.version, flogfs.version );
     return sector->header.version != flogfs.version || invalid_block(sector);
 }
 
@@ -391,7 +397,15 @@ flog_result_t flogfs_format() {
     if (flogfs.state == FLOG_STATE_MOUNTED) {
         flogfs.state = FLOG_STATE_RESET;
     }
-
+    for (block = FS_FIRST_BLOCK; block < flogfs.params.number_of_blocks; block++) {
+        flog_open_page(block, 0);
+        if (FLOG_FAILURE == flash_erase_block(block)) {
+            flog_unlock_fs();
+            flash_unlock();
+            flash_debug_error("FLogFS:" LINESTR);
+            return FLOG_FAILURE;
+        }
+    }
     for (block = FS_FIRST_BLOCK; block < flogfs.params.number_of_blocks; block++) {
         flog_open_page(block, 0);
         if (FLOG_SUCCESS == flash_block_is_bad()) {
@@ -400,6 +414,7 @@ flog_result_t flogfs_format() {
         flog_block_statistics_read(block, &statistics_sector);
         flog_close_sector();
 
+        //Check if the key matches
         if (invalid_block(&statistics_sector)) {
             statistics_sector.header.age = 0;
             memcpy(statistics_sector.key, flog_block_statistics_key, sizeof(flog_block_statistics_key));
@@ -412,14 +427,14 @@ flog_result_t flogfs_format() {
         statistics_sector.header.next_block = FLOG_BLOCK_IDX_INVALID;
         statistics_sector.header.next_age = FLOG_BLOCK_AGE_INVALID;
         statistics_sector.header.timestamp = 0;
-
+        
         if (FLOG_FAILURE == flash_erase_block(block)) {
             flog_unlock_fs();
             flash_unlock();
             flash_debug_error("FLogFS:" LINESTR);
             return FLOG_FAILURE;
         }
-
+        //Statistic info write to sector 0
         flog_block_statistics_write(block, &statistics_sector);
         flash_commit();
 
@@ -428,7 +443,7 @@ flog_result_t flogfs_format() {
             break;
         }
     }
-
+    
     assert(first_valid != FLOG_BLOCK_IDX_INVALID);
 
     flog_open_sector(first_valid, FLOG_INIT_SECTOR);
@@ -440,6 +455,7 @@ flog_result_t flogfs_format() {
     buffer_union.spare_buffer.inode_index = 0;
     buffer_union.spare_buffer.type_id = FLOG_BLOCK_TYPE_INODE;
     flash_write_spare((const uint8_t *)&buffer_union.spare_buffer, FLOG_INIT_SECTOR);
+    
 
     flash_commit();
 
@@ -624,16 +640,19 @@ flog_result_t flogfs_mount() {
     if (flogfs.inode0 == FLOG_BLOCK_IDX_INVALID) {
         return unlock_and_fail();
     }
+    printk("1 Debug FLogFS Mount Error!\n");
 
     if (!flogfs_inspect()) {
         return unlock_and_fail();
     }
+    printk("2 Debug FLogFS Mount Error!\n");
 
     flog_prealloc_initialize();
 
     if (!flog_prealloc_prime()) {
         return unlock_and_fail();
     }
+    printk("3 Debug FLogFS Mount Error!\n");
 
     flogfs.state = FLOG_STATE_MOUNTED;
 
@@ -1272,8 +1291,9 @@ flog_result_t flogfs_close_write(flog_write_file_t *file) {
         }
         goto failure;
     }
-
-    result = flog_flush_write(file);
+    if((file->offset != 0) && (file->offset != 16 && file->sector != FLOG_TAIL_SECTOR)){
+        result = flog_flush_write(file);
+    }
 
     flash_unlock();
     flog_unlock_fs();
@@ -1370,6 +1390,7 @@ flog_result_t flog_commit_file_sector(flog_write_file_t *file, uint8_t const *da
     flog_file_sector_spare_t file_sector_spare;
 
     if (file->sector == FLOG_TAIL_SECTOR) {
+        printk("flog_commit_file_sector: FLOG_TAIL_SECTOR n: %d\n", n);
         flog_file_tail_sector_header_t *const file_tail_sector_header = (flog_file_tail_sector_header_t *)file->sector_buffer;
         flog_block_alloc_t next_block;
 
@@ -1389,6 +1410,7 @@ flog_result_t flog_commit_file_sector(flog_write_file_t *file, uint8_t const *da
         flog_unlock_allocate();
 
         uint16_t bytes_in_sector = FS_SECTOR_SIZE - sizeof(flog_file_tail_sector_header_t);
+        bytes_in_sector = file->offset + n - sizeof(flog_file_tail_sector_header_t);
 
         // Prepare the header
         // memzero(file_tail_sector_header, sizeof(flog_file_tail_sector_header_t)); // Optional
@@ -1601,6 +1623,7 @@ static flog_result_t flog_flush_write(flog_write_file_t *file) {
     // The above commit may have allocated a new block, leaving that block dirty
     // so we flush again in that situation.
     if (file == flogfs.dirty_block.file) {
+        printk("Flush Dirty Block!\n");
         fr = flog_commit_file_sector(file, 0, 0);
         assert(flogfs.dirty_block.file == nullptr);
         assert(flogfs.dirty_block.block == FLOG_BLOCK_IDX_INVALID);
@@ -2010,7 +2033,9 @@ static flog_file_find_result_t flog_find_file(char const *filename, flog_inode_i
 }
 
 static void flog_flush_dirty_block() {
+    printk("flog_flush_dirty_block\n");
     if (flogfs.dirty_block.block != FLOG_BLOCK_IDX_INVALID) {
+        printk("flog_flush_dirty_block flogfs.dirty_block.block != FLOG_BLOCK_IDX_INVALID\n");
         flog_flush_write(flogfs.dirty_block.file);
         flogfs.dirty_block.block = FLOG_BLOCK_IDX_INVALID;
     }

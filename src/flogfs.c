@@ -375,7 +375,8 @@ flog_result_t flogfs_initialize(flog_initialize_params_t *params) {
 
     flogfs.params = *params;
 
-    return flash_initialize();
+    //return flash_initialize();
+    return FLOG_SUCCESS;
 }
 
 flog_result_t flogfs_format() {
